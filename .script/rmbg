@@ -2,12 +2,12 @@
 
 
 source $BGSCRIPT/defaults
-url="$(cat $RDIR/$CURRENT)"
-
+url="$(cat $BGSCRIPT/$CURRENT)"
 echo "Are you sure you wish to remove picture $url? (Y/N)"
-
 read usrin
-
 if [ $usrin = "Y" ] || [ $usrin = "y" ]; then
-  sed "\#$url#d" $URLS > $RDIR/$CURRENT
+  if [ ! -f $URLS.bkp ]; then
+    cp $URLS{,.bkp}
+  fi
+  sed "\#$url#d" $URLS > $URLS
 fi

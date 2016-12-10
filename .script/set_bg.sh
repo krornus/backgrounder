@@ -1,5 +1,10 @@
 #!/bin/bash
 
+if [ -z $BGSCRIPT ]; then
+  echo "Please export a BGSCRIPT environmental variable to the directory of this script"
+  exit -1
+fi
+
 source $BGSCRIPT/defaults 
 
 get_backgrounds()
@@ -65,7 +70,7 @@ on_next_img()
     fi
   fi
   wget -O $RDIR/$TMP_IMG $IMAGE
-  echo $IMAGE > $RDIR/.background
+  echo $IMAGE > $BGSCRIPT/$CURRENT
   IMAGE=$TMP_IMG
 }
 

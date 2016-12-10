@@ -3,7 +3,7 @@
 source $BGSCRIPT/defaults
 
 if [ $# -eq 0 ]; then
-  url=$(cat $RDIR/$CURRENT)
+  url=$(cat $BGSCRIPT/$CURRENT)
 elif [ $# -eq 1 ]; then
   url=$1
 fi
