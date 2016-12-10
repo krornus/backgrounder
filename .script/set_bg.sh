@@ -1,6 +1,6 @@
 #!/bin/bash
 
-source defaults 
+source $BGSCRIPT/defaults 
 
 get_backgrounds()
 {

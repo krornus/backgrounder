@@ -1,4 +1,5 @@
-RDIR="$HOME/pictures/backgrounder/img"
+RDIR="$HOME/pictures/backgrounder"
+SCRIPT=".script"
 URLS=""
 SHUFFLE=true
 CYCLE=true
@@ -10,7 +11,7 @@ DELTA=5
 CURRENT=".background"
 source $RC
 
-TMP_IMG="tmp.img"
+TMP_IMG=".tmp.img"
 IMAGE=$TMP_IMG
 index=0
 

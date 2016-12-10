@@ -1,0 +1,5 @@
+#!/bin/sh
+
+source $BGSCRIPT/defaults
+cat $RDIR/$CURRENT
+

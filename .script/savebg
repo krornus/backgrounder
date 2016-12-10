@@ -1,9 +1,6 @@
 #!/bin/sh
 
-
-DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-
-source $DIR/defaults
+source $BGSCRIPT/defaults
 
 if [ $# -eq 0 ]; then
   url=$(cat $RDIR/$CURRENT)
