@@ -7,7 +7,8 @@ CYCLE=true
 INTERVAL=90
 RC=$HOME/.backgroundrc
 FILL_MODE=bg-fill
-
+INTERNET=true
+DELTA=5
 source $RC
 
 TMP_IMG="tmp.img"
@@ -32,7 +33,7 @@ check_online()
   ping -c 1 -q www.google.com
   
 
-  if [ "$ONLINE" = 0 ] && [ $? = 0 ]; then
+  if [ "$ONLINE" = 0 ] && [ $? = 0 ] && [ "$INTERNET" = true ]; then
     ONLINE=true
   else
     ONLINE=false
@@ -86,15 +87,15 @@ set_img()
 }
 
 set_img
-check_online
-get_backgrounds
-next_img
-set_img
 while [ "$CYCLE" = true ]; do
-  set_img
+  duration=0
   check_online
   get_backgrounds
   next_img
-  source $RC
-  sleep $INTERVAL
+  set_img
+  while [ $duration -le $INTERVAL ]; do
+    duration=$(($duration+$DELTA))
+    source $RC
+    sleep $DELTA
+  done
 done
