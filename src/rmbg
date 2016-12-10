@@ -1,0 +1,14 @@
+#!/bin/sh
+
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+source $DIR/defaults
+url="$(cat $RDIR/$CURRENT)"
+
+echo "Are you sure you wish to remove picture $url? (Y/N)"
+
+read usrin
+
+if [ $usrin = "Y" ] || [ $usrin = "y" ]; then
+  sed "\#$url#d" $URLS > $RDIR/$CURRENT
+fi

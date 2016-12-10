@@ -1,0 +1,14 @@
+#!/bin/sh
+
+
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+source $DIR/defaults
+
+if [ $# -eq 0 ]; then
+  url=$(cat $RDIR/$CURRENT)
+elif [ $# -eq 1 ]; then
+  url=$1
+fi
+
+wget --directory-prefix=$RDIR $url

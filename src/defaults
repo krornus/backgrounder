@@ -1,0 +1,16 @@
+RDIR="$HOME/pictures/backgrounder/img"
+URLS=""
+SHUFFLE=true
+CYCLE=true
+INTERVAL=90
+RC=$HOME/.backgroundrc
+FILL_MODE=bg-fill
+INTERNET=true
+DELTA=5
+CURRENT=".background"
+source $RC
+
+TMP_IMG="tmp.img"
+IMAGE=$TMP_IMG
+index=0
+

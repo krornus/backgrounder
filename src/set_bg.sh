@@ -1,19 +1,6 @@
 #!/bin/bash
 
-RDIR="$HOME/pictures/backgrounder/img"
-URLS=""
-SHUFFLE=true
-CYCLE=true
-INTERVAL=90
-RC=$HOME/.backgroundrc
-FILL_MODE=bg-fill
-INTERNET=true
-DELTA=5
-source $RC
-
-TMP_IMG="tmp.img"
-IMAGE=$TMP_IMG
-index=0
+source defaults 
 
 get_backgrounds()
 {
@@ -78,6 +65,7 @@ on_next_img()
     fi
   fi
   wget -O $RDIR/$TMP_IMG $IMAGE
+  echo $IMAGE > $RDIR/.background
   IMAGE=$TMP_IMG
 }
 
