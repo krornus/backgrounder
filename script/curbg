@@ -1,5 +1,5 @@
 #!/bin/sh
 
 source $BGSCRIPT/defaults
-cat $BGSCRIPT/$CURRENT
+cat $RDIR/$IMGLIST/$CURRENT
 

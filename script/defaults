@@ -1,5 +1,7 @@
 RDIR="$HOME/pictures/backgrounder"
-SCRIPT=".script"
+SCRIPT="script"
+SAVED="offline"
+IMGLIST="online"
 URLS=""
 SHUFFLE=true
 CYCLE=true
@@ -7,11 +9,11 @@ INTERVAL=90
 RC=$HOME/.backgroundrc
 FILL_MODE=bg-fill
 INTERNET=true
-DELTA=5
+DELTA=2
 CURRENT=".background"
 source $RC
 
-TMP_IMG=".tmp.img"
+TMP_IMG="tmp.img"
 IMAGE=$TMP_IMG
 index=0
 

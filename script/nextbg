@@ -1,0 +1,4 @@
+#!/bin/sh
+
+source $BGSCRIPT/defaults
+touch $RC

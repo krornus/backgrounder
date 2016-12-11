@@ -6,13 +6,14 @@ if [ -z $BGSCRIPT ]; then
 fi
 
 source $BGSCRIPT/defaults 
+MODIFIED=$(stat -c %Y $RC)
 
 get_backgrounds()
 {
   if [ "$ONLINE" = true ]; then
     BACKGROUNDS=($(cat $URLS))
   else
-    BACKGROUNDS=($(ls -I $TMP_IMG $RDIR))
+    BACKGROUNDS=($(ls $RDIR/$SAVED))
   fi
   MAX=${#BACKGROUNDS[@]}
 }
@@ -23,13 +24,13 @@ check_online()
   ONLINE=$?
 
   ping -c 1 -q www.google.com
-  
 
-  if [ "$ONLINE" = 0 ] && [ $? = 0 ] && [ "$INTERNET" = true ]; then
+  if [ $? = 0 ] && [ "$ONLINE" = 0 ] && [ "$INTERNET" = true ]; then
     ONLINE=true
   else
     ONLINE=false
   fi
+  echo $ONLINE
 }
 
 next_img()
@@ -54,6 +55,7 @@ off_next_img()
       index=0
     fi
   fi
+  IMAGE=$RDIR/$SAVED/$IMAGE
 }
 
 on_next_img()
@@ -69,26 +71,31 @@ on_next_img()
       index=0
     fi
   fi
-  wget -O $RDIR/$TMP_IMG $IMAGE
-  echo $IMAGE > $BGSCRIPT/$CURRENT
-  IMAGE=$TMP_IMG
+  wget -O $RDIR/$IMGLIST/$TMP_IMG $IMAGE
+  echo $IMAGE > $RDIR/$IMGLIST/$CURRENT
+  IMAGE=$RDIR/$IMGLIST/$TMP_IMG
 }
 
 set_img()
 {
-  feh --$FILL_MODE $RDIR/$IMAGE
+  feh --$FILL_MODE $IMAGE
 }
 
-set_img
+check_online
+get_backgrounds
+next_img
 while [ "$CYCLE" = true ]; do
   duration=0
-  check_online
-  get_backgrounds
   next_img
   set_img
+  get_backgrounds
+  check_online
   while [ $duration -le $INTERVAL ]; do
     duration=$(($duration+$DELTA))
-    source $RC
+    if [ $MODIFIED != $(stat -c %Y $RC) ]; then
+      duration=$INTERVAL
+      MODIFIED=$(stat -c %Y $RC)
+    fi
     sleep $DELTA
   done
 done
