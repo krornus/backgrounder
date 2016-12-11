@@ -15,5 +15,3 @@ source $RC
 
 TMP_IMG="tmp.img"
 IMAGE=$TMP_IMG
-index=0
-

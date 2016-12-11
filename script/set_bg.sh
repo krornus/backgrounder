@@ -1,5 +1,6 @@
 #!/bin/bash
 
+index=0
 if [ -z $BGSCRIPT ]; then
   echo "Please export a BGSCRIPT environmental variable to the directory of this script"
   exit -1
@@ -95,7 +96,9 @@ while [ "$CYCLE" = true ]; do
     if [ $MODIFIED != $(stat -c %Y $RC) ]; then
       duration=$INTERVAL
       MODIFIED=$(stat -c %Y $RC)
+      source $RC
     fi
     sleep $DELTA
   done
+  source $RC
 done
