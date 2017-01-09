@@ -1,5 +1,0 @@
-#!/bin/sh
-
-source $BGSCRIPT/defaults
-cat $RDIR/$IMGLIST/$CURRENT
-
