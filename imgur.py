@@ -3,69 +3,76 @@ import argparse
 import json
 from bs4 import BeautifulSoup
 import re
+from validators import url as check_url
 
 
-def get_images(url, min_height=0, min_width=0, 
-                    max_height=-1, max_width=-1, 
-                    height=-1, width=-1):
 
-  gallery_base="http://imgur.com/ajaxalbums/getimages/{}/hit.json"
+class ImgurParser(object):
 
-  routes = [
-    "^https?://imgur.com/gallery/([^/]+)$",
-    "^https?://imgur.com/r/[^/]+/([^/]+)$",
-    "^https?://imgur.com/([^/]+)$",
-    "^https?://imgur.com/t/[^/]+/([^/]+)$",
-    "^https?://imgur.com/a/([^/]+)$",
-    "^https?://(?:i\.)?imgur.com/([^/]+)$",
-  ]
+    def __init__(self, min_height=0, min_width=0, 
+                         max_height=-1, max_width=-1, 
+                         height=-1, width=-1):
+        self.min_height = min_height
+        self.min_width = min_width
+        self.max_height = max_height
+        self.max_width = max_width
+        self.height = height
+        self.width = width
 
-  response = requests.get(url)
-  html = response.text
+        self.routes = [
+          "^https?://imgur.com/gallery/([^/]+)$",
+          "^https?://imgur.com/r/[^/]+/([^/]+)$",
+          "^https?://imgur.com/([^/]+)$",
+          "^https?://imgur.com/t/[^/]+/([^/]+)$",
+          "^https?://imgur.com/a/([^/]+)$",
+          "^https?://imgur.com/([^/]+)$",
+        ]
+    
 
-  rel = ""
+    def get_images(self, url):
 
-  for route in routes:
-    m = re.search(route, url)
-    if m:
-      rel=m.group(1)
+        rel = ""
 
-  if not rel:
-    print "Couldn't find imgur id from url {}".format(url)
-    print "If the id is in the url, add a regular expression to routes"
-    exit(1)
+        if not check_url(url):
+            return []
 
-  soup = BeautifulSoup(html, "lxml")
-  images=[]
+        for route in self.routes:
+            m = re.search(route, url)
+            if m:
+                rel = m.group(1)
 
-  gallery_url = gallery_base.format(rel)
-  gallery_base.format(rel)
-  json_res = requests.get(gallery_url)
-  gallery = json.loads(json_res.text)
-  
-  if gallery['data']:
-    if 'images' in gallery['data']:
-      images=gallery['data']['images']
-    images=[ 'http://i.imgur.com/'+x['hash']+x['ext'] for x in images ]
-  else:
-    images = []
-    for img in soup.find_all("div", {"class":"post-image-container"}):
-      soup=BeautifulSoup(str(img), "lxml")
-      image=soup.find("img")
-      if image:
-        images.append("http:"+image["src"])
-      elif img:
-        #slow last resort
-        images+=get_images("http://i.imgur.com/" + img['id'])
+        if not rel:
+            return []
 
-  return images 
+        gallery_base="http://imgur.com/ajaxalbums/getimages/{}/hit.json"
 
+        response = requests.get(url)
+        html = response.text
 
-if __name__ == "__main__":
-  parser = argparse.ArgumentParser()
-  parser.add_argument("url")
-  args = parser.parse_args()
+        soup = BeautifulSoup(html, "lxml")
+        images=[]
+      
 
-  for img in get_images(args.url):
-    print img
+        gallery_url = gallery_base.format(rel)
+        gallery_base.format(rel)
+        json_res = requests.get(gallery_url)
+        gallery = json.loads(json_res.text)
+        
+        if gallery['data']:
+            if 'images' in gallery['data']:
+                images=gallery['data']['images']
+            images=[ 'http://i.imgur.com/'+x['hash']+x['ext'] for x in images ]
+        else:
+            images = []
+            for img in soup.find_all("div", {"class":"post-image-container"}):
+                soup=BeautifulSoup(str(img), "lxml")
+                image=soup.find("img")
+                if image:
+                    images.append("http:"+image["src"])
+                elif img:
+                    #slow last resort
+                    images+=get_images("http://i.imgur.com/" + img['id'])
+
+        return images 
+
 
