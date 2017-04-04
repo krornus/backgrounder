@@ -1,3 +1,11 @@
 gi
 pydbus
+validators
+StringIO
+PIL
+requests
+imghdr
+subprocess
+pathlib
+ConfigParser
 

@@ -102,7 +102,7 @@ class BackgrounderService(object):
         self.cycle_timer = None
 
         self.Reload()
-        self.Resume()
+        self.OnCycleChanged()
 
 
     def Help(self):
@@ -112,6 +112,8 @@ class BackgrounderService(object):
     def RefreshActivePaths(self):
         shuffle = self.settings.get_bool("Shuffle")
         self.paths = list(set(self.paths))
+        self.paths = reduce(lambda l, x: l.append(x) or l if (x not in l and x.strip()) else l, self.paths, [])
+
 
         if shuffle:
             self.active_paths = self.ShufflePaths(self.paths)
@@ -124,8 +126,6 @@ class BackgrounderService(object):
             else:
                 self.index = 0 
             self.active_paths = self.paths
-
-        self.UpdateBackground()
 
 
     def UpdateBackground(self):
@@ -236,16 +236,25 @@ class BackgrounderService(object):
         self.settings.set("Paths", "")
         # this sets our active path and paths variables based on unexpaned uris
         self.AppendImagePath(paths)
+        self.UpdateBackground()
         self.LoadImageList()
         self.ResetTimer()
 
 
     def Refresh(self):
         
+        # reload from config, save paths 
         paths = self.settings.get("paths")
+        paths = self.paths
+        index = self.index
+        active_paths = self.active_paths
         self.settings.set("paths", paths)
         self.settings = self.load_config()
         self.RefreshActivePaths()
+        self.paths = paths
+        self.active_paths = active_paths
+        self.index = index
+        self.UpdateBackground()
 
     
     def ResetTimer(self):
