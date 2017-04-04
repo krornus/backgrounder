@@ -105,6 +105,5 @@ def test():
     service.SetSetting("shuffle", "true")
 
 
-service.AppendImagePath("http://imgur.com/a/CrG6A")
 service.SetSetting("shuffle", "true")
-service.Next()
+service.AppendImagePath("http://imgur.com/a/CrG6A")

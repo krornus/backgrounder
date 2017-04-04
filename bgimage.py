@@ -1,4 +1,5 @@
-from os import path
+from os import path, remove
+from PIL import Image
 from requests import get
 from glob import iglob
 from pathlib import Path
@@ -68,7 +69,10 @@ class ImagePath(object):
         tmp_path = "/home/spowell/.tmp"
         self.DownloadImage(uri, tmp_path)
         if self.isimage(tmp_path):
+            remove(tmp_path)
             return [uri]
+        remove(tmp_path)
+        return []
 
 
     def DownloadImage(self, uri, fn):
@@ -78,13 +82,17 @@ class ImagePath(object):
 
 
     def SetBackground(self, fn, fill):
-        if fill not in self.fill:
-            return False
-        return subprocess.call(['feh', self.fill[fill], fn]) == 0
+        # TODO: enforce with errors
+        return subprocess.call(['feh', self.fill.get(fill,"--bg-max"), fn]) == 0
 
 
     def isimage(self, path):
-        return bool(imghdr.what(path))
+        try:
+            im = Image.open(path)
+            im.verify()
+            return True
+        except Exception as e:
+            return False
 
 
     def connected(self, host="8.8.8.8", port=53, timeout=2):
