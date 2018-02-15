@@ -5,6 +5,7 @@ import argparse
 import daemon
 from bgserver import run
 
+from os import path
 
 def append_nargs_range(low,high):
     class RequiredLength(argparse.Action):
@@ -18,8 +19,7 @@ def append_nargs_range(low,high):
                 else:
                     setattr(args, self.dest, [values])
             else:
-                err='argument "{f}" requires [{nmin} - {nmax}] arguments (inclusive)'.format(
-                    f=self.dest,nmin=nmin,nmax=nmax)
+                err='argument "{f}" requires [{nmin} - {nmax}] arguments (inclusive)'.format(f=self.dest,nmin=low,nmax=high)
                 raise argparse.ArgumentTypeError(err)
     return RequiredLength
 
@@ -35,12 +35,11 @@ def handle_settings(settings):
 
 def handle_set_images(images):
     for img in images:
-        print img[0]
         res = service.SetImagePath(img[0])
         if res:
             print "Error: {}:\n\t{}".format(img[0],res)
 
-        
+
 def handle_append_images(images):
     for img in images:
         res = service.AppendImagePath(img[0])
@@ -49,47 +48,57 @@ def handle_append_images(images):
 
 
 if __name__ == "__main__":
-    
+
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--server", action="store_true", default=False)
-    
+
     parser.add_argument("--setting", "-s", nargs="+", action=append_nargs_range(1,2))
-    parser.add_argument("--list-settings", action="store_true") 
-    parser.add_argument("--save", nargs="?", const="", default=False) 
+    parser.add_argument("--list-settings", action="store_true")
+    parser.add_argument("--save", nargs="?", const="", default=False)
 
-    parser.add_argument("--next", "-n", action="store_true") 
-    parser.add_argument("--current", "-c", action="store_true") 
-    parser.add_argument("--previous", "-p", action="store_true") 
-    parser.add_argument("--pause", action="store_true") 
-    parser.add_argument("--resume", action="store_true") 
-    parser.add_argument("--remove", action="store_true") 
+    parser.add_argument("--next", "-n", action="store_true")
+    parser.add_argument("--current", "-c", action="store_true")
+    parser.add_argument("--previous", "-p", action="store_true")
+    parser.add_argument("--pause", action="store_true")
+    parser.add_argument("--resume", action="store_true")
+    parser.add_argument("--remove", action="store_true")
+    parser.add_argument("--undo", "-u", action="store_true")
 
-    parser.add_argument("--reload", action="store_true") 
-    parser.add_argument("--refresh", "-r", action="store_true") 
+    parser.add_argument("--reload", action="store_true")
+    parser.add_argument("--refresh", "-r", action="store_true")
 
-    parser.add_argument("--save-images", nargs="?", const="", default=False) 
-    parser.add_argument("--load-images", nargs="?", const="", default=False) 
-    parser.add_argument("--set-images", "-i", nargs="+", action="append") 
-    parser.add_argument("--get-images", "-l", action="store_true") 
-    parser.add_argument("--append-images", "-a", nargs="+", action="append") 
+    parser.add_argument("--save-images", nargs="?", const="", default=False)
+    parser.add_argument("--load-images", nargs="?", const="", default=False)
+    parser.add_argument("--set-images", "-i", nargs="+", action="append")
+    parser.add_argument("--get-images", "-l", action="store_true")
+    parser.add_argument("--append-images", "-a", nargs="+", action="append")
 
-    parser.add_argument("--verbose", "-v", action="store_true") 
-    parser.add_argument("--exit", "-q", action="store_true") 
+    parser.add_argument("--writeback", "-w", action="store_true")
+    parser.add_argument("--verbose", "-v", action="store_true")
+    parser.add_argument("--exit", "-q", action="store_true")
 
     args = parser.parse_args()
 
     if args.server:
-        run()
-    
+        with daemon.DaemonContext():
+            run()
+
+
     bus = SessionBus()
     service = None
     try:
         service = bus.get("com.krornus.dbus.Backgrounder")
     except Exception as e:
-        print "service not running" 
+        print "service not running"
     if not service:
         exit(1)
+
+    if args.writeback:
+        service.SetSetting("writeback", "true")
+
+    if args.undo:
+        print service.Undo()
 
     # refresh then set settings
     if args.reload:
@@ -125,7 +134,9 @@ if __name__ == "__main__":
 
     # next/prev then pause/resume
     if args.remove:
-        service.Remove()
+        res = service.Remove()
+        if res:
+            print res
     if args.next:
         service.Next()
     elif args.previous:
@@ -137,13 +148,18 @@ if __name__ == "__main__":
         service.Resume()
 
     if args.save != False:
+        if args.save:
+            args.save = path.abspath(args.save)
         service.Save(args.save)
 
     # save then load
     if args.save_images != False:
-        print service.SaveImageList(args.save_images)
+        print service.SaveImageList(path.abspath(args.save_images))
     if args.load_images != False:
-        service.LoadImageList(args.load_images)
+        service.LoadImageList(path.abspath(args.load_images))
 
     if args.exit:
         service.Exit()
+
+    if args.writeback:
+        service.SetSetting("writeback", "false")

@@ -1,0 +1,8 @@
+[Main]
+paths = 
+shuffle = true
+writeback = false
+cycle = true
+overwrite = true
+interval = 5 
+imagelist = /home/spowell/programming/python/backgrounder/tests/imagelist

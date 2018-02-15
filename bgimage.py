@@ -1,6 +1,6 @@
 from os import path, remove
 from PIL import Image
-from requests import get
+from requests import get, exceptions
 from glob import iglob
 from pathlib import Path
 from validators import url
@@ -9,9 +9,10 @@ import imghdr
 import subprocess
 
 class ImagePath(object):
-    
-    def __init__(self, parsers=[]):
-        
+
+    def __init__(self, tmp, parsers=[]):
+
+        self.tmp = tmp
         self.parsers = parsers
         self._parsers = [
             {"parser": self.ParseDirectoryPath, "description": "directory"},
@@ -34,11 +35,12 @@ class ImagePath(object):
 
 
     def ParseUri(self, uri):
-        
+
         paths = []
         # loop user defined parsers first
         parsers = self.parsers + self._parsers
         for parser in parsers:
+            print parser
             paths = parser["parser"](uri)
             if paths != []:
                 break
@@ -47,7 +49,7 @@ class ImagePath(object):
 
 
     def ParseDirectoryPath(self, uri):
-        paths = [] 
+        paths = []
         if path.isdir(uri):
             pathobj = Path(uri)
             for p in iglob(str(pathobj) + "/*"):
@@ -66,19 +68,26 @@ class ImagePath(object):
     def ParseImageUrl(self, uri):
         if not url(uri) or not self.connected():
             return []
-        tmp_path = "/home/spowell/.tmp"
-        self.DownloadImage(uri, tmp_path)
-        if self.isimage(tmp_path):
-            remove(tmp_path)
+        if not self.DownloadImage(uri, self.tmp):
+            return False
+
+        if self.isimage(self.tmp):
+            remove(self.tmp)
             return [uri]
-        remove(tmp_path)
+
         return []
 
 
     def DownloadImage(self, uri, fn):
         if path.isdir(path.dirname(path.abspath(fn))) and url(uri):
             with open(fn, "wb") as f:
-                f.write(get(uri).content)
+                try:
+                    f.write(get(uri).content)
+                    return True
+                except exceptions.ConnectionError:
+                    return False
+        else:
+            return False
 
 
     def SetBackground(self, fn, fill):
@@ -103,8 +112,3 @@ class ImagePath(object):
       except Exception as e:
         print e.message
         return False
-
-
-
-    
-        

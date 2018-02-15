@@ -46,7 +46,11 @@ class ImgurParser(object):
 
         gallery_base="http://imgur.com/ajaxalbums/getimages/{}/hit.json"
 
-        response = requests.get(url)
+        try:
+            response = requests.get(url)
+        except requests.exceptions.ConnectionError:
+            return []
+
         html = response.text
 
         soup = BeautifulSoup(html, "lxml")
