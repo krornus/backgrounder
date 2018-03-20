@@ -11,8 +11,41 @@ args:
         takes_value: true
     - server:
         long: server
+        short: s
         takes_value: false
         help: Starts server daemon
 subcommands:
     - next:
         about: skip to next background
+    - prev:
+        about: skip to previous background
+    - shuffle:
+        about: toggle shuffle mode
+    - play:
+        about: toggle play or pause
+    - quit:
+        about: close the backgrounder server
+    - current:
+        about: current image
+    - index:
+        about: current image index
+    - remove:
+        about: remove current image from rotation
+    - undo:
+        about: undo remove
+    - append:
+        about: append list of paths to rotation
+        args:
+            - path:
+                multiple: true
+                help: list of values to append
+                min_values: 1
+    - set:
+        about: set rotation to list of paths
+        args:
+            - path:
+                multiple: true
+                help: list of values to append
+                min_values: 1
+
+

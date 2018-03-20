@@ -1,32 +1,42 @@
 use std::sync::Arc;
-use std::cell::RefCell;
 use std::rc::Rc;
+use std::cell::{RefCell,Cell};
 
 use dbus::{self,Path,NameFlag};
 use dbus::tree::{self, MTFn, Access};
 
+use bgconfig::Config;
 use player::Player;
+//use background::set_background;
+use parser::SiteParser;
+use imgur;
 
 const NAME: &'static str = "com.backgrounder.dbus";
 
-#[derive(Clone, Default, Debug)]
+//#[derive(Clone, Default, Debug)]
+#[derive(Debug)]
 struct ServerInterface {
     path: Path<'static>,
     player: Rc<RefCell<Player>>,
 }
 
 impl ServerInterface {
-    fn new() -> Self {
+    fn new(config: Config, parsers: Vec<Box<SiteParser>>) -> Self {
+        let mut player = Player::new_callback(vec![], parsers, |_|{});
+        player.initialize(config);
+
         ServerInterface {
             path: "/player".into(),
-            player: Rc::new(RefCell::new((Player::new()))),
+            player: Rc::new(RefCell::new(
+                player
+            )),
         }
     }
 }
 
-
-#[derive(Clone, Default, Debug)]
+#[derive(Clone, Default)]
 struct TData;
+
 impl tree::DataType for TData {
     type Tree = ();
     type ObjectPath = Arc<ServerInterface>;
@@ -36,7 +46,7 @@ impl tree::DataType for TData {
     type Signal = ();
 }
 
-fn create_tree(player: &Arc<ServerInterface>) -> tree::Tree<MTFn<TData>, TData>  {
+fn create_tree(player: &Arc<ServerInterface>, done: Rc<Cell<bool>>) -> tree::Tree<MTFn<TData>, TData>  {
 
     let factory = tree::Factory::new_fn();
 
@@ -69,6 +79,7 @@ fn create_tree(player: &Arc<ServerInterface>) -> tree::Tree<MTFn<TData>, TData> 
                 let mut player = serv.player.borrow_mut();
 
                 i.append(player.current());
+
                 Ok(())
             })
         )
@@ -121,7 +132,6 @@ fn create_tree(player: &Arc<ServerInterface>) -> tree::Tree<MTFn<TData>, TData> 
             })
         )
         .add_m(factory.method("set_list", (), move |m| {
-
                 let list: Vec<String> = m.msg.read1()?;
 
                 let serv: &Arc<ServerInterface> = m.path.get_data();
@@ -149,6 +159,11 @@ fn create_tree(player: &Arc<ServerInterface>) -> tree::Tree<MTFn<TData>, TData> 
                 Ok(vec![m.msg.method_return().append1(player.next())])
             }).outarg::<&str,_>("uri")
         )
+        .add_m(factory.method("quit", (), move |m| {
+                done.set(true);
+                Ok(vec![m.msg.method_return()])
+            })
+        )
         .add_m(factory.method("prev", (), move |m| {
                 let serv: &Arc<ServerInterface> = m.path.get_data();
                 let mut player = serv.player.borrow_mut();
@@ -162,14 +177,18 @@ fn create_tree(player: &Arc<ServerInterface>) -> tree::Tree<MTFn<TData>, TData> 
             .introspectable()
             .add(iface)
         )
-
 }
 
 pub fn run() {
-    let linter = Arc::new(ServerInterface::new());
+    let done: Rc<Cell<bool>> = Default::default();
+    let config = Config::load();
 
-    let tree = create_tree(&linter);
+    let imgur = imgur::ImgurParser::new();
+    let parsers: Vec<Box<SiteParser>> = vec![Box::new(imgur)];
 
+    let linter = Arc::new(ServerInterface::new(config, parsers));
+
+    let tree = create_tree(&linter, done.clone());
     let conn = dbus::Connection::get_private(dbus::BusType::Session).unwrap();
 
     conn.register_name(NAME, NameFlag::ReplaceExisting as u32).unwrap();
@@ -177,5 +196,7 @@ pub fn run() {
 
     conn.add_handler(tree);
 
-    loop { conn.incoming(1000).next(); }
+    while !done.get() {
+        conn.incoming(100).next();
+    }
 }

@@ -1,5 +1,8 @@
 use rand::{thread_rng, Rng};
 
+use bgconfig::Config;
+use parser::SiteParser;
+
 #[derive(Clone, Default, Debug)]
 pub struct Player {
     pub index: usize,
@@ -8,15 +11,16 @@ pub struct Player {
     playlist: Vec<String>,
     history: Vec<(usize,usize,String)>,
     shuffled_playlist: Vec<String>,
+    // Option so that we can derive Default
+    index_changed: Option<fn(String)>,
+    parsers: Vec<Box<SiteParser>>,
 }
 
 
 impl Player {
-    pub fn new() -> Self {
+    pub fn new(pl: Vec<String>, parsers: Vec<Box<SiteParser>>) -> Self {
 
         let mut rng = thread_rng();
-        let pl: Vec<_> = vec!["a","b","c"]
-            .into_iter().map(String::from).collect();
 
         let mut pl_shuffle = pl.clone();
 
@@ -29,7 +33,34 @@ impl Player {
             playlist: pl,
             shuffled_playlist: pl_shuffle,
             history: vec![],
+            index_changed: None,
+            parsers: parsers,
         }
+    }
+
+    pub fn initialize(&mut self, config: Config) {
+        let images = self.expand_paths(config.uris());
+
+        self.set_list(images);
+        self.shuffle(config.shuffle());
+    }
+
+    pub fn new_callback(pl: Vec<String>, parsers: Vec<Box<SiteParser>>, f: fn(String)) -> Self {
+        let mut player = Self::new(pl, parsers);
+        player.index_changed = Some(f);
+
+        player
+    }
+
+    fn expand_paths(&self, paths: Vec<String>) -> Vec<String> {
+        paths.iter()
+            .flat_map(|uri| {
+                self.parsers.iter().find(|p| {
+                    p.is_valid(uri)
+                }).map_or(vec![], |p| {
+                    p.parse(uri)
+                })
+            }).collect()
     }
 
     pub fn shuffle(&mut self, s: bool) {
@@ -100,7 +131,6 @@ impl Player {
     }
 
     pub fn undo_remove(&mut self) {
-
         if let Some((idx, shuf_idx, val)) = self.history.pop() {
             if idx > self.playlist.len() || shuf_idx > self.playlist.len() {
                 panic!("invalid history")
@@ -108,10 +138,13 @@ impl Player {
 
             self.playlist.insert(idx, val.clone());
             self.shuffled_playlist.insert(shuf_idx, val);
+        } else {
+            println!("skipping undo");
         }
     }
 
     pub fn set_list(&mut self, list: Vec<String>) {
+        self.history = vec![];
         self.playlist = list;
         self.index = 0;
         self.set_shuffle();
