@@ -14,6 +14,11 @@ args:
         short: s
         takes_value: false
         help: Starts server daemon
+    - no-daemon:
+        long: no-daemon
+        short: d
+        takes_value: false
+        help: Keep the server in foreground
 subcommands:
     - next:
         about: skip to next background
@@ -29,6 +34,12 @@ subcommands:
         about: current image
     - index:
         about: current image index
+    - interval:
+        about: set the interval between images in seconds
+        args:
+            - time:
+                help: time (s)
+                takes_value: true
     - remove:
         about: remove current image from rotation
     - undo:

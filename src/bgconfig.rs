@@ -2,6 +2,7 @@ use std::env;
 use std::path::{Path,PathBuf};
 
 use config;
+use background::Mode;
 
 const CONFIG: &str = ".bgrc";
 
@@ -61,11 +62,47 @@ impl Config {
         }
     }
 
-    pub fn shuffle(&self) -> bool {
+    pub fn mode(&self) -> Mode {
         if let Some(ref settings) = self.settings {
-            settings.lookup_boolean_or("shuffle", false)
+            match settings.lookup_str_or("mode", "max") {
+                "center" => Mode::Center,
+                "fill" => Mode::Fill,
+                "max" => Mode::Max,
+                "scale" => Mode::Scale,
+                "tile" => Mode::Tile,
+                _ => Mode::Max,
+            }
         } else {
-            false
+            Mode::Max
+        }
+    }
+
+    pub fn interval(&self) -> u64 {
+        let default = 120;
+
+        if let Some(ref settings) = self.settings {
+            settings.lookup_integer64_or("interval", default) as u64
+        } else {
+            default as u64
+        }
+    }
+
+    pub fn shuffle(&self) -> bool {
+        let default = false;
+
+        if let Some(ref settings) = self.settings {
+            settings.lookup_boolean_or("shuffle", default)
+        } else {
+            default
+        }
+    }
+
+    pub fn play(&self) -> bool {
+        let default = true;
+        if let Some(ref settings) = self.settings {
+            settings.lookup_boolean_or("play", default)
+        } else {
+            default
         }
     }
 

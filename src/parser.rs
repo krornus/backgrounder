@@ -1,4 +1,5 @@
 use std::fmt::Debug;
+use std::io;
 use reqwest;
 
 pub trait SiteParser: Debug + SiteParserClone {
@@ -29,6 +30,7 @@ impl Clone for Box<SiteParser> {
 #[derive(Debug)]
 pub enum Error {
     Request(reqwest::Error),
+    IO(io::Error),
     Route(RouteError),
 }
 
@@ -41,5 +43,12 @@ pub enum RouteError {
 impl From<reqwest::Error> for Error {
     fn from(e: reqwest::Error) -> Self {
         Error::Request(e)
+    }
+}
+
+
+impl From<io::Error> for Error {
+    fn from(e: io::Error) -> Self {
+        Error::IO(e)
     }
 }

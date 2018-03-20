@@ -1,29 +1,32 @@
-use std::rc::Rc;
-use std::cell::Cell;
 use std::process::Command;
-use std::path::Path;
-
+use std::fs::File;
+use std::path::{Path,PathBuf};
+use std::error::Error;
 use std::env;
+use std::io;
+
 use url::Url;
+use reqwest;
 
-pub fn set_background(uri: String) {}
+use parser;
 
-/*
-pub struct Background { }
-pub fn set_background(uri: String) {
+#[derive(Clone, Debug)]
+pub enum Mode {
+    Center,
+    Fill,
+    Max,
+    Scale,
+    Tile,
+}
 
-    if !in_path("feh") {
-        return;
-    }
-
-    // canonicalize can panic on characters like ~ ???
-    // TODO: make wrapper
-    if Path::new(uri).is_file() {
-
-    } else if Url::parse(uri).is_ok() {
-        match download_file(uri) {
-            Ok(path) => set_background
-
+impl ToString for Mode {
+    fn to_string(&self) -> String {
+        match self {
+            &Mode::Center => "--bg-center".to_string(),
+            &Mode::Fill=> "--bg-fill".to_string(),
+            &Mode::Max=> "--bg-max".to_string(),
+            &Mode::Scale=> "--bg-scale".to_string(),
+            &Mode::Tile=> "--bg-tile".to_string(),
         }
     }
 }
@@ -37,4 +40,56 @@ fn in_path(prog: &str) -> bool {
         false
     }
 }
-*/
+
+pub fn set_background(uri: String, mode: Mode) {
+
+    if !in_path("feh") {
+        return;
+    }
+
+    // canonicalize can panic on characters like ~ ???
+    // TODO: make wrapper
+    let local = Path::new(&uri);
+    if local.is_file() {
+        set_file(local, mode);
+    } else if Url::parse(&uri.clone()).is_ok() {
+        match download_file(uri.clone()) {
+            Ok(path) => set_file(path.as_path(), mode),
+            Err(e) => {
+                println!("error downloading file '{}'",uri);
+                println!("\t{:?}",e);
+            },
+        }
+    };
+}
+
+
+fn download_file(url: String) -> Result<PathBuf, parser::Error> {
+
+    let rget = reqwest::get(&url)?;
+    match rget.error_for_status() {
+        Ok(mut resp) => {
+            let tmp = env::temp_dir();
+            let path = tmp.join(Path::new("backgrounder.img"));
+            let mut file = File::create(&path)?;
+            io::copy(&mut resp, &mut file)?;
+            Ok(path.to_path_buf())
+        },
+        Err(e) => {
+            Err(e.into())
+        }
+    }
+}
+
+fn set_file(path: &Path, mode: Mode) {
+    match Command::new("feh")
+        .arg(mode.to_string())
+        .arg(path.to_str().unwrap())
+        .spawn() {
+            Ok(_) => {},
+            Err(e) => {
+                println!("failed to spawn feh, is it installed?");
+                println!("\t{}", e.description());
+            }
+    }
+}

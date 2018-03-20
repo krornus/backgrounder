@@ -1,6 +1,7 @@
 extern crate dbus;
 #[macro_use]
 extern crate clap;
+extern crate time;
 extern crate rand;
 extern crate regex;
 extern crate url;
@@ -22,7 +23,7 @@ mod tests;
 mod imgur;
 mod bgconfig;
 mod parser;
-//mod background;
+mod background;
 
 use std::process::exit;
 use std::error::Error;
@@ -43,13 +44,16 @@ fn main() {
 
     let client = client::Player::new();
 
-    if matches.is_present("server") {
+    let server = matches.is_present("server");
+    let no_daemon = matches.is_present("no-daemon");
+
+    if server && !no_daemon {
 
         let daemonize = Daemonize::new().pid_file("/tmp/backgrounder.pid")
-                            .chown_pid_file(true)
-                            .privileged_action(|| {
-                                server::run()
-                            });
+            .chown_pid_file(true)
+            .privileged_action(|| {
+                server::run()
+            });
 
         match daemonize.start() {
             Ok(_) => { },
@@ -59,6 +63,8 @@ fn main() {
                 exit(1);
             }
         }
+    } else if server {
+        server::run()
     }
 
     subcommand(client, &matches);
@@ -126,6 +132,10 @@ fn subcommand(mut client: client::Player, m: &ArgMatches) {
         },
         ("index", Some(_)) => {
             println!("{}",client.index());
+        },
+        ("interval", Some(sub)) => {
+            let inter = value_t!(sub, "time", u64).unwrap_or_else(|e| e.exit());
+            client.interval(inter);
         },
         ("remove", Some(_)) => {
             client.remove();

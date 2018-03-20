@@ -4,16 +4,16 @@ use std::cell::{RefCell,Cell};
 
 use dbus::{self,Path,NameFlag};
 use dbus::tree::{self, MTFn, Access};
+use time;
 
 use bgconfig::Config;
 use player::Player;
-//use background::set_background;
+use background::set_background;
 use parser::SiteParser;
 use imgur;
 
 const NAME: &'static str = "com.backgrounder.dbus";
 
-//#[derive(Clone, Default, Debug)]
 #[derive(Debug)]
 struct ServerInterface {
     path: Path<'static>,
@@ -22,7 +22,8 @@ struct ServerInterface {
 
 impl ServerInterface {
     fn new(config: Config, parsers: Vec<Box<SiteParser>>) -> Self {
-        let mut player = Player::new_callback(vec![], parsers, |_|{});
+
+        let mut player = Player::new_callback(vec![], parsers, set_background);
         player.initialize(config);
 
         ServerInterface {
@@ -92,6 +93,26 @@ fn create_tree(player: &Arc<ServerInterface>, done: Rc<Cell<bool>>) -> tree::Tre
 
                 i.append(index);
                 Ok(())
+            })
+        )
+        .add_p(factory.property::<u64,_>("interval",())
+            .access(Access::ReadWrite)
+            .on_get(|i,m| {
+
+                let serv: &Arc<ServerInterface> = m.path.get_data();
+                let inter = serv.player.borrow().interval;
+
+                i.append(inter as u64);
+                Ok(())
+            })
+            .on_set(|i,m| {
+                let serv: &Arc<ServerInterface> = m.path.get_data();
+                let inter = i.read::<u64>()?;
+
+                serv.player.borrow_mut().interval(inter);
+
+                Ok(())
+
             })
         )
         .add_p(factory.property::<bool,_>("shuffle",())
@@ -182,6 +203,7 @@ fn create_tree(player: &Arc<ServerInterface>, done: Rc<Cell<bool>>) -> tree::Tre
 pub fn run() {
     let done: Rc<Cell<bool>> = Default::default();
     let config = Config::load();
+    let mut start = time::get_time().sec;
 
     let imgur = imgur::ImgurParser::new();
     let parsers: Vec<Box<SiteParser>> = vec![Box::new(imgur)];
@@ -197,6 +219,14 @@ pub fn run() {
     conn.add_handler(tree);
 
     while !done.get() {
-        conn.incoming(100).next();
+        conn.incoming(1000).next();
+
+        let elapsed = (time::get_time().sec - start) as u64;
+        let mut player = (&*linter).player.borrow_mut();
+
+        if elapsed >= player.interval {
+            player.next_if_play();
+            start = time::get_time().sec;
+        }
     }
 }

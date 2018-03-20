@@ -1,19 +1,23 @@
-use rand::{thread_rng, Rng};
+use rand::{thread_rng, Rng, ThreadRng};
 
 use bgconfig::Config;
+use background::Mode;
 use parser::SiteParser;
 
-#[derive(Clone, Default, Debug)]
+#[derive(Clone, Debug)]
 pub struct Player {
     pub index: usize,
+    pub interval: u64,
     shuffle: bool,
     play: bool,
     playlist: Vec<String>,
     history: Vec<(usize,usize,String)>,
     shuffled_playlist: Vec<String>,
     // Option so that we can derive Default
-    index_changed: Option<fn(String)>,
+    index_changed: Option<fn(String, Mode)>,
     parsers: Vec<Box<SiteParser>>,
+    mode: Mode,
+    rng: ThreadRng,
 }
 
 
@@ -21,7 +25,6 @@ impl Player {
     pub fn new(pl: Vec<String>, parsers: Vec<Box<SiteParser>>) -> Self {
 
         let mut rng = thread_rng();
-
         let mut pl_shuffle = pl.clone();
 
         rng.shuffle(&mut pl_shuffle);
@@ -35,17 +38,28 @@ impl Player {
             history: vec![],
             index_changed: None,
             parsers: parsers,
+            mode: Mode::Max,
+            rng: rng,
+            interval: 120,
         }
     }
 
     pub fn initialize(&mut self, config: Config) {
+        self.mode = config.mode();
         let images = self.expand_paths(config.uris());
 
-        self.set_list(images);
+        self.history = vec![];
+        self.playlist = images;
+        self.index = 0;
+        self.interval = config.interval();
+
+        self.init_shuffled_list();
         self.shuffle(config.shuffle());
+        self.play(config.play());
+        self.callback();
     }
 
-    pub fn new_callback(pl: Vec<String>, parsers: Vec<Box<SiteParser>>, f: fn(String)) -> Self {
+    pub fn new_callback(pl: Vec<String>, parsers: Vec<Box<SiteParser>>, f: fn(String, Mode)) -> Self {
         let mut player = Self::new(pl, parsers);
         player.index_changed = Some(f);
 
@@ -67,6 +81,10 @@ impl Player {
         self.shuffle = s;
     }
 
+    pub fn interval(&mut self, i: u64) {
+        self.interval = i;
+    }
+
     pub fn is_shuffled(&self) -> bool {
         self.shuffle
     }
@@ -85,6 +103,9 @@ impl Player {
         }
 
         self.index = (self.index + 1) % self.playlist.len();
+        println!("Next: {}/{}", self.index, self.playlist.len());
+
+        self.callback();
         self.current()
     }
 
@@ -99,6 +120,9 @@ impl Player {
             self.index = (self.index - 1) % self.playlist.len();
         }
 
+        println!("Prev: {}/{}", self.index, self.playlist.len());
+
+        self.callback();
         self.current()
     }
 
@@ -128,6 +152,7 @@ impl Player {
         self.history.push((self.index, idx, item));
 
         self.cleanse_index();
+        self.callback();
     }
 
     pub fn undo_remove(&mut self) {
@@ -141,31 +166,54 @@ impl Player {
         } else {
             println!("skipping undo");
         }
+
+        self.callback();
     }
 
     pub fn set_list(&mut self, list: Vec<String>) {
+        let images = self.expand_paths(list);
+
         self.history = vec![];
-        self.playlist = list;
+        self.playlist = images;
         self.index = 0;
-        self.set_shuffle();
+        self.init_shuffled_list();
+
+        self.callback();
+    }
+
+    pub fn next_if_play(&mut self) {
+        if self.play {
+            self.next();
+        }
     }
 
     pub fn append_list(&mut self, list: Vec<String>) {
+        let images = self.expand_paths(list);
 
-        self.playlist.extend_from_slice(&list);
+        self.playlist.extend_from_slice(&images);
 
         if self.shuffle {
             self.index = 0;
         }
 
-        self.set_shuffle();
+        self.init_shuffled_list();
     }
 
-    fn set_shuffle(&mut self) {
-        // ThreadRng does not implement Default
-        let mut rng = thread_rng();
+    fn callback(&mut self) {
+
+        let img = self.current().to_string();
+        let mode = self.mode.clone();
+
+        println!("Callback({:?},{:?})",img, mode);
+
+        if let Some(f) = self.index_changed {
+            f(img, mode);
+        }
+    }
+
+    fn init_shuffled_list(&mut self) {
         self.shuffled_playlist = self.playlist.clone();
-        rng.shuffle(&mut self.shuffled_playlist);
+        self.rng.shuffle(&mut self.shuffled_playlist);
     }
 
     fn cleanse_index(&mut self) {

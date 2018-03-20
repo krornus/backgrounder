@@ -62,6 +62,13 @@ impl Player {
         try_dbus!(props.set("shuffle", p.into()));
     }
 
+    pub fn interval(&mut self, i: u64) {
+
+        let props = Props::new(&self.conn, NAME, "/player", NAME, 5000);
+
+        try_dbus!(props.set("interval", i.into()));
+    }
+
     pub fn is_shuffled(&self) -> bool {
 
         let props = Props::new(&self.conn, NAME, "/player", NAME, 5000);
