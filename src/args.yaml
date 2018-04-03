@@ -34,6 +34,19 @@ subcommands:
         about: current image
     - index:
         about: current image index
+    - logs:
+        about: print new server logs
+    - save:
+        about: save current playlist of images to file
+        args:
+            - path:
+                help: path to save file
+                takes_value: true
+            - force:
+                long: force
+                short: f
+                takes_value: false
+                help: overwrite file if existing
     - interval:
         about: set the interval between images in seconds
         args:

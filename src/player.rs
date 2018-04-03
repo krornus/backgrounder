@@ -1,3 +1,6 @@
+use std::fs::File;
+use std::io::prelude::*;
+
 use rand::{thread_rng, Rng, ThreadRng};
 
 use bgconfig::Config;
@@ -66,15 +69,42 @@ impl Player {
         player
     }
 
+    pub fn save(&self, uri: &str) {
+        if let Ok(mut f) = File::create(uri) {
+            for path in self.playlist.iter() {
+                if let Err(_) = write!(f, "{}\n", path) {
+                    break;
+                }
+            }
+        }
+    }
+
+    // Want to add a parser that can load a file of sub-paths
     fn expand_paths(&self, paths: Vec<String>) -> Vec<String> {
         paths.iter()
             .flat_map(|uri| {
-                self.parsers.iter().find(|p| {
-                    p.is_valid(uri)
-                }).map_or(vec![], |p| {
-                    p.parse(uri)
-                })
+                self.expand_all_path(&uri)
             }).collect()
+    }
+
+    // Pass in path, get recursively expanded path
+    fn expand_all_path(&self, path: &str) -> Vec<String> {
+        if let Some(v) = self.expand_path(path) {
+            v.iter()
+                .flat_map(|uri| {
+                    self.expand_all_path(&uri)
+                }).collect()
+        } else {
+            vec![path.to_string()]
+        }
+    }
+
+    fn expand_path(&self, path: &str) -> Option<Vec<String>> {
+        self.parsers.iter().find(|p| {
+            p.is_valid(path)
+        }).map_or(None, |p| {
+            Some(p.parse(path))
+        })
     }
 
     pub fn shuffle(&mut self, s: bool) {

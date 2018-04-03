@@ -10,7 +10,10 @@ use bgconfig::Config;
 use player::Player;
 use background::set_background;
 use parser::SiteParser;
+use messenger::{Messenger,Server,Logger};
+
 use imgur;
+use fileparser;
 
 const NAME: &'static str = "com.backgrounder.dbus";
 
@@ -152,6 +155,16 @@ fn create_tree(player: &Arc<ServerInterface>, done: Rc<Cell<bool>>) -> tree::Tre
                 Ok(vec![m.msg.method_return()])
             })
         )
+        .add_m(factory.method("save", (), move |m| {
+                let path: String = m.msg.read1()?;
+
+                let serv: &Arc<ServerInterface> = m.path.get_data();
+                let player = serv.player.borrow();
+                player.save(&path);
+
+                Ok(vec![m.msg.method_return()])
+            }).inarg::<String,_>("path")
+        )
         .add_m(factory.method("set_list", (), move |m| {
                 let list: Vec<String> = m.msg.read1()?;
 
@@ -205,8 +218,20 @@ pub fn run() {
     let config = Config::load();
     let mut start = time::get_time().sec;
 
+    let mut logger = <Logger as Messenger<Server>>::new()
+        .expect("failed to create logger");
+
+    logger.send("data")
+        .expect("failed to log data");
+
     let imgur = imgur::ImgurParser::new();
-    let parsers: Vec<Box<SiteParser>> = vec![Box::new(imgur)];
+    let fparser = fileparser::FileParser;
+
+    //TODO: need retries when populating paths if no connection
+    let parsers: Vec<Box<SiteParser>> = vec![
+        Box::new(fparser),
+        Box::new(imgur),
+    ];
 
     let linter = Arc::new(ServerInterface::new(config, parsers));
 

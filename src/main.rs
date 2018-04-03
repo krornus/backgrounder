@@ -1,20 +1,20 @@
-extern crate dbus;
+#[macro_use]
+extern crate serde_derive;
 #[macro_use]
 extern crate clap;
+extern crate dbus;
+extern crate image;
 extern crate time;
 extern crate rand;
 extern crate regex;
 extern crate url;
 extern crate reqwest;
 extern crate kuchiki;
-
 extern crate serde;
-#[macro_use]
-extern crate serde_derive;
 extern crate serde_json;
 extern crate config;
-
 extern crate daemonize;
+extern crate nanomsg;
 
 mod client;
 mod server;
@@ -24,6 +24,8 @@ mod imgur;
 mod bgconfig;
 mod parser;
 mod background;
+mod fileparser;
+mod messenger;
 
 use std::process::exit;
 use std::error::Error;
@@ -33,6 +35,8 @@ use std::fs;
 
 use clap::{App,ArgMatches,Shell};
 use daemonize::{Daemonize};
+
+use messenger::{Messenger,Client,Logger};
 
 fn main() {
 
@@ -145,6 +149,30 @@ fn subcommand(mut client: client::Player, m: &ArgMatches) {
         },
         ("undo", Some(_)) => {
             client.undo();
+        },
+        ("logs", Some(_)) => {
+            let mut logger = <Logger as Messenger<Client>>::new()
+                .expect("failed to create logger");
+            println!("{:?}",logger.recv());
+        },
+        ("save", Some(sub)) => {
+            let fpath = value_t!(sub, "path", String).unwrap_or_else(|e| e.exit());
+            let path = Path::new(&fpath);
+            let force = sub.is_present("force");
+
+            if let Ok(expanded) = path.canonicalize() {
+                if let Some(name) = expanded.to_str() {
+                    if expanded.exists() && !force {
+                        println!("file '{}' exists, run with --force to overwrite", name);
+                    } else {
+                        client.save(name.to_string());
+                    }
+                } else {
+                    println!("failed to get full path from '{}'", fpath);
+                }
+            } else {
+                println!("failed to get full path from '{}'", fpath);
+            }
         },
         ("append", Some(sub)) => {
             let paths = values_t!(sub, "path", String).unwrap_or_else(|e| e.exit());

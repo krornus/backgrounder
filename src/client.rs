@@ -131,6 +131,13 @@ impl Player {
         try_dbus!(self.conn.send_with_reply_and_block(m, 2000));
     }
 
+    pub fn save(&mut self, path: String) {
+
+        let m = Message::new_method_call(NAME, "/player", NAME, "save").unwrap()
+            .append1(path);
+
+        try_dbus!(self.conn.send_with_reply_and_block(m, 2000));
+    }
     pub fn set_list(&mut self, list: Vec<String>) {
 
         let m = Message::new_method_call(NAME, "/player", NAME, "set_list").unwrap()
