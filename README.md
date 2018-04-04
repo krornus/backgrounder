@@ -104,3 +104,12 @@ ZCOMPLETE_DIR
 FCOMPLETE_DIR
 ```
 The file will be placed in the given directory.
+
+# TODO
+- dmesg style logger
+- retry on connection failure for retrieving web paths
+    - currently fails, returns none, and ends up with permanently empty playlist until set again
+- ping function on dbus to check if up
+    - also need to use ping function on invocation
+- use direct X11 calls instead of feh
+    - some code created, unsure why the FFI isn't working
