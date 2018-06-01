@@ -49,14 +49,19 @@ impl Image {
 
 impl SiteParser for ImgurParser {
     fn parse(&self, uri: &str) -> Vec<String> {
-        let re = self.routes.iter().find(|x| {
+
+        let (i,re) = self.routes.iter().enumerate().find(|&(_,x)| {
                 x.is_match(uri)
             }).unwrap();
 
-        let id = re.captures(uri).map(|m| m.get(1).unwrap())
-            .unwrap();
+        if i == 6 {
+            vec![uri.to_string()]
+        } else {
+            let id = re.captures(uri).map(|m| m.get(1).unwrap())
+                .unwrap();
 
-        self.image_list(uri, id.as_str()).unwrap_or(vec![])
+            self.image_list(uri, id.as_str()).unwrap_or(vec![])
+        }
     }
 
     fn is_valid(&self, uri: &str) -> bool {

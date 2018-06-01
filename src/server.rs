@@ -8,9 +8,9 @@ use time;
 
 use bgconfig::Config;
 use player::Player;
-use background::set_background;
+use background::{try_set_old,set_background};
 use parser::SiteParser;
-use messenger::{Messenger,Server,Logger};
+//use messenger::{Messenger,Server,Logger};
 
 use imgur;
 use fileparser;
@@ -27,7 +27,10 @@ impl ServerInterface {
     fn new(config: Config, parsers: Vec<Box<SiteParser>>) -> Self {
 
         let mut player = Player::new_callback(vec![], parsers, set_background);
+
         player.initialize(config);
+        /* set old background while waiting */
+        try_set_old(player.mode());
 
         ServerInterface {
             path: "/player".into(),
@@ -138,6 +141,10 @@ fn create_tree(player: &Arc<ServerInterface>, done: Rc<Cell<bool>>) -> tree::Tre
 
             })
         )
+        .add_m(factory.method("ping", (), move |m| {
+                Ok(vec![m.msg.method_return()])
+            })
+        )
         .add_m(factory.method("remove", (), move |m| {
                 let serv: &Arc<ServerInterface> = m.path.get_data();
                 let mut player = serv.player.borrow_mut();
@@ -218,11 +225,10 @@ pub fn run() {
     let config = Config::load();
     let mut start = time::get_time().sec;
 
-    let mut logger = <Logger as Messenger<Server>>::new()
-        .expect("failed to create logger");
-
-    logger.send("data")
-        .expect("failed to log data");
+    //let mut logger = <Logger as Messenger<Server>>::new()
+    //    .expect("failed to create logger");
+    //logger.send("data")
+    //    .expect("failed to log data");
 
     let imgur = imgur::ImgurParser::new();
     let fparser = fileparser::FileParser;

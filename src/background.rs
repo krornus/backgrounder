@@ -8,7 +8,10 @@ use std::io;
 use url::Url;
 use reqwest;
 
+
 use parser;
+
+const TMP_IMG: &str = "backgrounder.img";
 
 #[derive(Clone, Debug)]
 pub enum Mode {
@@ -28,6 +31,15 @@ impl ToString for Mode {
             &Mode::Scale=> "--bg-scale".to_string(),
             &Mode::Tile=> "--bg-tile".to_string(),
         }
+    }
+}
+
+pub fn try_set_old(mode: Mode) {
+    let tmp = env::temp_dir();
+    let path = tmp.join(Path::new(TMP_IMG));
+
+    if path.exists() {
+        set_file(path.as_path(), mode);
     }
 }
 
@@ -66,16 +78,17 @@ pub fn set_background(uri: String, mode: Mode) {
 
 fn download_file(url: String) -> Result<PathBuf, parser::Error> {
 
-    let rget = reqwest::get(&url)?;
-    match rget.error_for_status() {
+    match reqwest::get(&url) {
         Ok(mut resp) => {
             let tmp = env::temp_dir();
-            let path = tmp.join(Path::new("backgrounder.img"));
+            let path = tmp.join(Path::new(TMP_IMG));
             let mut file = File::create(&path)?;
             io::copy(&mut resp, &mut file)?;
             Ok(path.to_path_buf())
         },
         Err(e) => {
+            println!("{:?}",e);
+            println!("{:?}",e.status());
             Err(e.into())
         }
     }

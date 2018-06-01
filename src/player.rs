@@ -47,6 +47,10 @@ impl Player {
         }
     }
 
+    pub fn mode(&self) -> Mode {
+        self.mode.clone()
+    }
+
     pub fn initialize(&mut self, config: Config) {
         self.mode = config.mode();
         let images = self.expand_paths(config.uris());
@@ -90,10 +94,14 @@ impl Player {
     // Pass in path, get recursively expanded path
     fn expand_all_path(&self, path: &str) -> Vec<String> {
         if let Some(v) = self.expand_path(path) {
-            v.iter()
-                .flat_map(|uri| {
-                    self.expand_all_path(&uri)
-                }).collect()
+            if v.len() > 1 {
+                v.iter()
+                    .flat_map(|uri| {
+                        self.expand_all_path(&uri)
+                    }).collect()
+            } else {
+                v
+            }
         } else {
             vec![path.to_string()]
         }

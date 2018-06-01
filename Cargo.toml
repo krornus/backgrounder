@@ -20,4 +20,4 @@ daemonize = "0.2.3"
 time = "0.1.39"
 image = "0.18.0"
 nanomsg = "0.6.2"
-
+imlib2 = { path = "../imlib2-rs" }

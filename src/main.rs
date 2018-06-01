@@ -47,6 +47,7 @@ fn main() {
     let matches = app.get_matches();
 
     let client = client::Player::new();
+    client.ping();
 
     let server = matches.is_present("server");
     let no_daemon = matches.is_present("no-daemon");

@@ -151,5 +151,11 @@ impl Player {
             .append1(list);
         try_dbus!(self.conn.send_with_reply_and_block(m, 2000));
     }
+
+    pub fn ping(&self) {
+
+        let m = Message::new_method_call(NAME, "/player", NAME, "ping").unwrap();
+        try_dbus!(self.conn.send_with_reply_and_block(m, 2000));
+    }
 }
 

@@ -112,4 +112,4 @@ The file will be placed in the given directory.
 - ping function on dbus to check if up
     - also need to use ping function on invocation
 - use direct X11 calls instead of feh
-    - some code created, unsure why the FFI isn't working
+    - code mostly done, needs modes implemented and cleanup
