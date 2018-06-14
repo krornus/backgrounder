@@ -56,6 +56,7 @@ impl Logger where Self: Messenger<Server> {
         println!("starting write");
         let r = self.socket.write(&msg);
         println!("finished write");
+
         r
     }
 }

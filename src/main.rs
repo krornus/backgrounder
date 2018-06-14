@@ -15,6 +15,7 @@ extern crate serde_json;
 extern crate config;
 extern crate daemonize;
 extern crate nanomsg;
+extern crate xwallpaper;
 
 mod client;
 mod server;
@@ -25,7 +26,7 @@ mod bgconfig;
 mod parser;
 mod background;
 mod fileparser;
-mod messenger;
+mod error;
 
 use std::process::exit;
 use std::error::Error;
@@ -35,8 +36,6 @@ use std::fs;
 
 use clap::{App,ArgMatches,Shell};
 use daemonize::{Daemonize};
-
-use messenger::{Messenger,Client,Logger};
 
 fn main() {
 
@@ -150,11 +149,6 @@ fn subcommand(mut client: client::Player, m: &ArgMatches) {
         },
         ("undo", Some(_)) => {
             client.undo();
-        },
-        ("logs", Some(_)) => {
-            let mut logger = <Logger as Messenger<Client>>::new()
-                .expect("failed to create logger");
-            println!("{:?}",logger.recv());
         },
         ("save", Some(sub)) => {
             let fpath = value_t!(sub, "path", String).unwrap_or_else(|e| e.exit());

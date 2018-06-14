@@ -2,7 +2,7 @@ use std::env;
 use std::path::{Path,PathBuf};
 
 use config;
-use background::Mode;
+use xwallpaper::render::Mode;
 
 const CONFIG: &str = ".bgrc";
 
@@ -69,7 +69,6 @@ impl Config {
                 "fill" => Mode::Fill,
                 "max" => Mode::Max,
                 "scale" => Mode::Scale,
-                "tile" => Mode::Tile,
                 _ => Mode::Max,
             }
         } else {

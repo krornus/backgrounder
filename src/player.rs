@@ -4,7 +4,7 @@ use std::io::prelude::*;
 use rand::{thread_rng, Rng, ThreadRng};
 
 use bgconfig::Config;
-use background::Mode;
+use xwallpaper::render::Mode;
 use parser::SiteParser;
 
 #[derive(Clone, Debug)]

@@ -30,7 +30,13 @@ impl ServerInterface {
 
         player.initialize(config);
         /* set old background while waiting */
-        try_set_old(player.mode());
+        match try_set_old(player.mode()) {
+            Ok(_) => {},
+            Err(e) => {
+                println!("Warning: Failed to set old background");
+                println!("    {:?}", e);
+            }
+        }
 
         ServerInterface {
             path: "/player".into(),
