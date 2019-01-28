@@ -8,6 +8,8 @@ use crate::error::Error;
 use crate::parsers::{Loader, Expander};
 
 pub struct FileParser;
+
+/* true/false recurses/doesnt */
 pub struct DirectoryParser(pub bool);
 
 impl Loader for FileParser {
@@ -45,6 +47,7 @@ impl Expander for DirectoryParser {
 
                     if path.is_dir() {
                         if self.0 {
+                            /* recurse directories */
                             Some(name)
                         } else {
                             None

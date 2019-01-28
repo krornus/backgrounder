@@ -4,10 +4,7 @@ use rand::rngs::ThreadRng;
 
 use std::ops::Index;
 
-trait Expand<T> {
-    fn expand(items: Self) -> Vec<T>;
-}
-
+/* History item used for restoring during undo() */
 #[derive(Debug)]
 struct RemoveItem<T> {
     ordered: usize,
@@ -27,6 +24,7 @@ impl<T> RemoveItem<T> {
     }
 }
 
+/* All types of history items */
 #[derive(Debug)]
 enum HistoryItem<T> {
     Add(usize),
@@ -66,10 +64,14 @@ impl<T> HistoryItem<T> {
     }
 }
 
+/* XXX: It seems like something else should handle history */
+
+/* this struct acts similar to a Vec but */
+/* maintains two lists - the actual list in its original order */
+/* and a shuffled list, which holds a list of indexes */
 #[derive(Debug)]
-/* XXX: REMOVE PUB */
 pub struct ShuffleList<T> {
-    pub ordered: Vec<T>,
+    ordered: Vec<T>,
     random:  Vec<usize>,
     shuffle: bool,
     state:   usize,
@@ -254,10 +256,10 @@ impl<T> Index<usize> for ShuffleList<T> {
     }
 }
 
+/* A playlist of things */
 #[derive(Debug)]
 pub struct Playlist<T> {
-    //XXX REMOVE PUB
-    pub items: ShuffleList<T>,
+    items: ShuffleList<T>,
     history: Vec<HistoryItem<T>>,
     idx: usize,
 }
@@ -270,6 +272,7 @@ impl<T> Playlist<T> {
             idx: 0,
         }
     }
+
     pub fn push(&mut self, item: T) {
         let hist = self.items.push(item);
         self.history.push(hist);

@@ -10,7 +10,12 @@ mod controller;
 use crate::controller::Controller;
 use crate::error::Error;
 
-/* TODO: Error: better way of deriving serde? */
+/* TODO: error.rs: better way of deriving serde? */
+/*  currently errors hold to_strings so they can be serialized */
+
+/* TODO: playlist.rs: should next/prev panic? (probably) */
+
+/* TODO: main.rs: poll for the server lock support in converse */
 
 fn args<'a, 'b>() -> App<'a, 'b> {
     App::new("backgrounder")
@@ -39,18 +44,16 @@ fn main() -> Result<(), Error> {
 
     let matches = args().get_matches();
 
-    /*
-     * spawn server thread
-     *   allows us to process commands within a server command
-     */
+    /* spawn server thread
+         allows us to process commands within a server command */
     let server = match matches.subcommand() {
         ("server", _) => Some(server()),
         _ => None,
     };
 
-    /* TODO: converse support */
     let mut controller = Controller::client();
     /* poll the filesystem for the socket/lockfile */
+    /* see TODO at top */
     while controller.is_err() { controller = Controller::client() }
     let mut controller = controller.unwrap();
 
@@ -63,6 +66,8 @@ fn main() -> Result<(), Error> {
         });
 
     /* we can now call next and it will include the just given paths */
+    /* each call returns result on IPC and result on parapet etc...  */
+    /* thus the double ?? */
     match matches.subcommand() {
         ("next", _) => { controller.next()??; },
         ("prev", _) => { controller.prev()??; },
