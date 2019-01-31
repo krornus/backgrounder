@@ -307,6 +307,12 @@ impl<T> Playlist<T> {
             .map(|x| {
                 self.items.undo(x)
             });
+
+        self.update();
+    }
+
+    pub fn shuffle(&mut self, shuffle: bool) {
+        self.items.shuffle(shuffle)
     }
 
     /* these functions panic - check length outside */
@@ -347,17 +353,5 @@ impl<T> Playlist<T> {
         if self.idx >= self.len() {
             self.idx = self.len().saturating_sub(1);
         }
-    }
-}
-
-impl<T> Playlist<T> {
-    pub fn shuffle(&mut self, shuffle: bool) {
-        self.items.shuffle(shuffle)
-    }
-
-    pub fn index(&mut self, i: usize) -> &T {
-        /* panics if i is out of bounds */
-        self.idx = i;
-        &self.items[i]
     }
 }

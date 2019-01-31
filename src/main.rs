@@ -28,11 +28,20 @@ fn args<'a, 'b>() -> App<'a, 'b> {
                 .short("d")
                 .long("no-daemon")
                 .help("Run the server without detaching from terminal"))
+        .subcommand(SubCommand::with_name("remove")
+            .about("remove current wallpaper from playlist"))
+        .subcommand(SubCommand::with_name("undo")
+            .about("undo add/remove action"))
+        .subcommand(SubCommand::with_name("current")
+            .about("get current wallpaper"))
+        .subcommand(SubCommand::with_name("shuffle")
+            .arg(Arg::with_name("state")
+                .takes_value(true)
+                .default_value("true")
+                .possible_values(&["on", "true", "off", "false"])))
         .subcommand(SubCommand::with_name("next")
             .about("next wallpaper"))
         .subcommand(SubCommand::with_name("prev")
-            .about("previous wallpaper"))
-        .subcommand(SubCommand::with_name("shuffle")
             .about("previous wallpaper"))
         .arg(Arg::with_name("path")
             .help("path to a wallpaper")
@@ -58,17 +67,19 @@ fn main() -> Result<(), Error> {
     let mut controller = controller.unwrap();
 
     /* add paths first */
-    matches.values_of("path")
-        .map(|values| {
-            values.for_each(|x| {
-                controller.add(x);
-            })
-        });
+    if let Some(values) = matches.values_of("path") {
+        for path in values {
+            controller.add(path)?;
+        }
+    }
 
     /* we can now call next and it will include the just given paths */
     /* each call returns result on IPC and result on parapet etc...  */
     /* thus the double ?? */
     match matches.subcommand() {
+        ("remove", _) => { controller.remove()?; },
+        ("undo", _) => { controller.undo()?; },
+        ("current", _) => { controller.current()?; },
         ("next", _) => { controller.next()??; },
         ("prev", _) => { controller.prev()??; },
         _ => {},
@@ -83,7 +94,7 @@ fn main() -> Result<(), Error> {
 
 fn server() -> thread::JoinHandle<Result<(), Error>> {
     thread::spawn(|| {
-        Controller::new()?.server()?.run();
+        Controller::new()?.server()?.run()?;
         Ok(())
     })
 }

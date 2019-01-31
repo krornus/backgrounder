@@ -47,6 +47,14 @@ impl Controller {
         self.playlist.remove();
     }
 
+    pub fn undo(&mut self) {
+        self.playlist.undo();
+    }
+
+    pub fn current(&mut self) -> Option<String> {
+        self.playlist.current().cloned()
+    }
+
     pub fn shuffle(&mut self, shuffle: bool) {
         self.playlist.shuffle(shuffle);
     }
@@ -61,7 +69,7 @@ impl Controller {
         let image: image::DynamicImage = self.parser.load(item)?;
 
         for disp in self.wallpaper.displays()? {
-            disp.set(&image, self.mode.clone());
+            disp.set(&image, self.mode.clone())?;
         }
 
         Ok(item.clone())
@@ -77,7 +85,7 @@ impl Controller {
         let image: image::DynamicImage = self.parser.load(item)?;
 
         for disp in self.wallpaper.displays()? {
-            disp.set(&image, self.mode.clone());
+            disp.set(&image, self.mode.clone())?;
         }
 
         Ok(item.clone())

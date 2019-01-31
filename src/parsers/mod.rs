@@ -92,11 +92,6 @@ impl Parser {
         self.loaders.iter()
             .any(|loader| loader.is_valid(value).unwrap_or(false))
     }
-
-    pub fn can_expand(&self, value: &str) -> bool {
-        self.loaders.iter()
-            .any(|loader| loader.is_valid(value).unwrap_or(false))
-    }
 }
 
 /* Expanders take a path and turn it into multiple paths */
