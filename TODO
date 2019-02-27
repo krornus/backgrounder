@@ -8,3 +8,19 @@ playlist.rs
 
 main.rs - converse
     support polling for server lock
+
+main.rs
+    option to clear list when adding a path (-c?)
+    gives append/set functionality
+
+controller.rs/playlist.rs
+    save to file functionality
+
+config.rs
+    config file suppport
+
+controller.rs
+    interval thread
+    should poll every ~2s or something
+    load new value
+    next if new value < old
