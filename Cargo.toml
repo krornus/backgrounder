@@ -10,10 +10,7 @@ rand = "0.6"
 image = "0.21"
 serde = "1.0"
 serde_derive = "1.0"
-parapet  = { path = "../parapet" }
-converse = { path = "../converse/converse/" }
-converse-derive = { path = "../converse/converse-derive/" }
 
-# parapet  = { git = "https://github.com/krornus/parapet.git" }
-# converse = { git = "https://github.com/krornus/rust-converse.git" }
-# converse-derive = { git = "https://github.com/krornus/rust-converse.git" }
+parapet  = { git = "https://github.com/krornus/parapet.git" }
+converse = { git = "https://github.com/krornus/rust-converse.git" }
+converse-derive = { git = "https://github.com/krornus/rust-converse.git" }
