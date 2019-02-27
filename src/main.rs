@@ -1,14 +1,17 @@
 use clap::{Arg, App, SubCommand};
 
 use std::thread;
+use std::time::Duration;
 
 mod error;
+mod worker;
 mod parsers;
 mod playlist;
 mod controller;
 
 use crate::controller::Controller;
 use crate::error::Error;
+use crate::worker::FallibleThread;
 
 fn args<'a, 'b>() -> App<'a, 'b> {
     App::new("backgrounder")
@@ -16,11 +19,11 @@ fn args<'a, 'b>() -> App<'a, 'b> {
         .version("0.4")
         .about("Desktop wallpaper manager")
         .subcommand(SubCommand::with_name("server")
-            .about("start the server"))
+            .about("start the server")
             .arg(Arg::with_name("no-daemon")
                 .short("d")
                 .long("no-daemon")
-                .help("Run the server without detaching from terminal"))
+                .help("Run the server without detaching from terminal")))
         .subcommand(SubCommand::with_name("remove")
             .about("remove current wallpaper from playlist"))
         .subcommand(SubCommand::with_name("undo")
@@ -28,6 +31,7 @@ fn args<'a, 'b>() -> App<'a, 'b> {
         .subcommand(SubCommand::with_name("current")
             .about("get current wallpaper"))
         .subcommand(SubCommand::with_name("shuffle")
+            .about("set shuffle on/off for wallpapers")
             .arg(Arg::with_name("state")
                 .takes_value(true)
                 .default_value("true")
@@ -49,14 +53,36 @@ fn main() -> Result<(), Error> {
     /* spawn server thread
          allows us to process commands within a server command */
     let server = match matches.subcommand() {
-        ("server", _) => Some(server()),
+        ("server", _) => {
+            Some(server())
+        },
         _ => None,
     };
 
     let mut controller = Controller::client();
+
+    /* see TODO */
     /* poll the filesystem for the socket/lockfile */
-    /* see TODO at top */
-    while controller.is_err() { controller = Controller::client() }
+    while controller.is_err() {
+
+        let err = server.as_ref()
+            .map(|x| x.is_err());
+
+        if err  == Some(true) {
+            eprintln!("server failed");
+            return Err(Error::ServerError);
+        }
+
+        eprintln!("failed to establish server connection - retrying");
+        match controller {
+            Err(e) => println!("    {}", e),
+            _ => {}
+        }
+
+        controller = Controller::client();
+        thread::sleep(Duration::from_secs(2));
+    }
+
     let mut controller = controller.unwrap();
 
     /* add paths first */
@@ -85,9 +111,13 @@ fn main() -> Result<(), Error> {
     }
 }
 
-fn server() -> thread::JoinHandle<Result<(), Error>> {
-    thread::spawn(|| {
-        Controller::new()?.server()?.run()?;
+fn server() -> FallibleThread<(), Error> {
+
+    FallibleThread::spawn(|| {
+        Controller::new()?
+            .server()?
+            .run()?;
+
         Ok(())
     })
 }

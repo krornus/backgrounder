@@ -3,6 +3,7 @@ use std::fmt;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Error {
+    ServerError,
     InvalidImagePath,
     NoLoader,
     EmptyPlaylist,
@@ -45,6 +46,7 @@ impl fmt::Display for Error {
             Error::InvalidImagePath => write!(f, "Attempt to parse invalid image path"),
             Error::NoLoader => write!(f, "No loader found for given image"),
             Error::EmptyPlaylist => write!(f, "No images are in the current playlist"),
+            Error::ServerError => write!(f, "Internal server error"),
         }
     }
 }
