@@ -10,13 +10,6 @@ mod controller;
 use crate::controller::Controller;
 use crate::error::Error;
 
-/* TODO: error.rs: better way of deriving serde? */
-/*  currently errors hold to_strings so they can be serialized */
-
-/* TODO: playlist.rs: should next/prev panic? (probably) */
-
-/* TODO: main.rs: poll for the server lock support in converse */
-
 fn args<'a, 'b>() -> App<'a, 'b> {
     App::new("backgrounder")
         .author("Spencer Powell")

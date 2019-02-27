@@ -1,0 +1,13 @@
+error.rs
+    Find a better way to derive serde
+    Errors hold strings for easy serialization
+
+playlist.rs
+    Decide if next/prev should panic
+    - probably yes
+
+main.rs - converse
+    support polling for server lock
+
+controller.rs
+    auto-next when adding to empty playlist
