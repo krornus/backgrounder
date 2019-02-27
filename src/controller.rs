@@ -32,6 +32,9 @@ impl Controller {
 #[Converse(backgrounder)]
 impl Controller {
     pub fn add(&mut self, item: &str) {
+
+        let empty = self.playlist.len() == 0;
+
         /* if we cannot load the item, try expanding it */
         if self.parser.can_load(item) {
             self.playlist.push(item.to_string())
@@ -41,6 +44,9 @@ impl Controller {
         }
 
         println!("{:?}", self.playlist);
+        if empty {
+            self.next().map_err(|e| { eprintln!("{}", e); }).ok();
+        }
     }
 
     pub fn remove(&mut self) {
