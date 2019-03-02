@@ -19,32 +19,33 @@ fn args<'a, 'b>() -> App<'a, 'b> {
         .version("0.4")
         .about("Desktop wallpaper manager")
         .subcommand(SubCommand::with_name("server")
-            .about("start the server")
+            .about("Start the server")
             .arg(Arg::with_name("no-daemon")
                 .short("d")
                 .long("no-daemon")
                 .help("Run the server without detaching from terminal")))
         .subcommand(SubCommand::with_name("remove")
-            .about("remove current wallpaper from playlist"))
+            .about("Remove current wallpaper from playlist"))
         .subcommand(SubCommand::with_name("undo")
-            .about("undo add/remove action"))
+            .about("Undo add/remove action"))
         .subcommand(SubCommand::with_name("current")
-            .about("get current wallpaper"))
+            .about("Get current wallpaper"))
         .subcommand(SubCommand::with_name("shuffle")
-            .about("set shuffle on/off for wallpapers")
+            .about("Set shuffle on/off for wallpapers")
             .arg(Arg::with_name("state")
                 .takes_value(true)
                 .default_value("true")
                 .possible_values(&["on", "true", "off", "false"])))
         .subcommand(SubCommand::with_name("next")
-            .about("next wallpaper"))
+            .about("Next wallpaper"))
         .subcommand(SubCommand::with_name("prev")
-            .about("previous wallpaper"))
+            .about("Previous wallpaper"))
+        .subcommand(SubCommand::with_name("clear")
+            .about("Clear the playlist"))
         .arg(Arg::with_name("path")
-            .help("path to a wallpaper")
+            .help("Path to a wallpaper")
             .multiple(true))
 }
-
 
 fn main() -> Result<(), Error> {
 
@@ -73,11 +74,12 @@ fn main() -> Result<(), Error> {
             return Err(Error::ServerError);
         }
 
-        eprintln!("failed to establish server connection - retrying");
+        eprintln!("failed to establish server connection");
         match controller {
             Err(e) => println!("    {}", e),
             _ => {}
         }
+        eprintln!("    retrying...");
 
         controller = Controller::client();
         thread::sleep(Duration::from_secs(2));
@@ -85,7 +87,12 @@ fn main() -> Result<(), Error> {
 
     let mut controller = controller.unwrap();
 
-    /* add paths first */
+    /* clear first */
+    if matches.is_present("clear") {
+        controller.clear()?;
+    }
+
+    /* add paths second */
     if let Some(values) = matches.values_of("path") {
         for path in values {
             controller.add(path)?;

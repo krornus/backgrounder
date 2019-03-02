@@ -6,7 +6,7 @@ use crate::parsers::{Parser, file};
 use crate::error::Error;
 
 pub struct Controller {
-    pub playlist: Playlist<String>,
+    playlist: Playlist<String>,
     parser: Parser,
     wallpaper: Manager,
     mode: ImageMode,
@@ -33,6 +33,9 @@ impl Controller {
 impl Controller {
     pub fn add(&mut self, item: &str) {
 
+        println!("***** ADD ******");
+        println!("pre: {:#?}", self.playlist);
+
         let empty = self.playlist.len() == 0;
 
         /* if we cannot load the item, try expanding it */
@@ -43,18 +46,32 @@ impl Controller {
                 .map(|x| self.playlist.extend(x));
         }
 
-        println!("{:?}", self.playlist);
         if empty {
             self.next().map_err(|e| { eprintln!("{}", e); }).ok();
         }
+
+        println!("post: {:#?}", self.playlist);
+        println!("***** ADD ******");
     }
 
     pub fn remove(&mut self) {
         self.playlist.remove();
     }
 
+    pub fn clear(&mut self) {
+        println!("***** CLEAR ******");
+        println!("pre: {:#?}", self.playlist);
+        self.playlist.clear();
+        println!("post: {:#?}", self.playlist);
+        println!("***** CLEAR ******");
+    }
+
     pub fn undo(&mut self) {
+        println!("***** UNDO ******");
+        println!("pre: {:#?}", self.playlist);
         self.playlist.undo();
+        println!("post: {:#?}", self.playlist);
+        println!("***** UNDO ******");
     }
 
     pub fn current(&mut self) -> Option<String> {

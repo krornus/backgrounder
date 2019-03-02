@@ -111,6 +111,8 @@ impl<T> ShuffleList<T> {
 
     fn insert(&mut self, ordered: usize, random: usize, item: T) -> HistoryItem<T> {
 
+        println!("INSERT");
+
         if self.shuffle {
             /* the mappings which are after the inserted items are now off by one */
             self.random.iter_mut()
@@ -118,17 +120,30 @@ impl<T> ShuffleList<T> {
                 .for_each(|x| *x += 1);
         }
 
+        println!("ord: {}, rand: {}", ordered, random);
+
         self.ordered.insert(ordered, item);
         self.random.insert(random, ordered);
 
         HistoryItem::Add(ordered)
     }
 
+    /* FIXME: do this with an algorithm instead of O(n^2) */
+    fn clear(&mut self) -> HistoryItem<T> {
+
+        let mut hist = Vec::with_capacity(self.len());
+
+        for i in (0..self.len()).rev() {
+            hist.push(self.remove(i).into_remove());
+        }
+
+        HistoryItem::RemoveAll(hist)
+    }
+
     /* remove - map index if shuffle is true */
     fn remove(&mut self, index: usize) -> HistoryItem<T> {
 
         let index = if self.shuffle { self.random[index] } else { index };
-
         self.remove_ordered(index)
     }
 
@@ -158,7 +173,6 @@ impl<T> ShuffleList<T> {
     }
 
     fn shuffle(&mut self, shuffle: bool) {
-
         if !self.shuffle && shuffle {
             self.reshuffle();
         }
@@ -180,7 +194,6 @@ impl<T> ShuffleList<T> {
             self.rng.gen_range(0, self.len())
         }
     }
-
 
     fn undo(&mut self, item: HistoryItem<T>) -> HistoryItem<T> {
         match item {
@@ -211,6 +224,7 @@ impl<T> ShuffleList<T> {
     }
 
     fn undo_remove(&mut self, remove: RemoveItem<T>) -> HistoryItem<T> {
+
         /*
          * insert at old position or end if the old position
          * is past the end of the list
@@ -235,9 +249,13 @@ impl<T> ShuffleList<T> {
     }
 
     fn undo_remove_all(&mut self, all: Vec<RemoveItem<T>>) -> HistoryItem<T> {
-        let mut adds = Vec::with_capacity(all.len());
-        for rem in all {
-            adds.push(self.undo_remove(rem).into_undo().into_add())
+
+        let mut adds = vec![];
+
+        for rem in all.into_iter().rev() {
+            adds.push(self.undo_remove(rem)
+                          .into_undo()
+                          .into_add())
         }
 
         HistoryItem::Undo(Box::new(HistoryItem::AddAll(adds)))
@@ -284,7 +302,6 @@ impl<T> Playlist<T> {
     }
 
     pub fn remove(&mut self) -> Option<&T> {
-
         if self.len() != 0 {
             let hist = self.items.remove(self.idx);
 
@@ -300,6 +317,13 @@ impl<T> Playlist<T> {
         } else {
             None
         }
+    }
+
+    pub fn clear(&mut self) {
+        let hist = self.items.clear();
+
+        self.history.push(hist);
+        self.idx = 0;
     }
 
     pub fn undo(&mut self) {
