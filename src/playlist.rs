@@ -24,6 +24,45 @@ impl<T> RemoveItem<T> {
     }
 }
 
+#[derive(Debug)]
+struct MaxVec<T> {
+    max: usize,
+    vec: Vec<T>,
+}
+
+impl<T> MaxVec<T> {
+    #[inline]
+    fn new(max: usize) -> Self {
+        Self::with_capacity(max, 0)
+    }
+
+    #[inline]
+    fn with_capacity(max: usize, cap: usize) -> Self {
+        MaxVec {
+            max: max,
+            vec: Vec::with_capacity(cap),
+        }
+    }
+
+    #[inline]
+    fn push(&mut self, value: T) {
+        if self.max > 0 {
+            self.vec.truncate(self.max - 1);
+            self.vec.push(value);
+        }
+    }
+
+    #[inline]
+    fn pop(&mut self) -> Option<T> {
+        self.vec.pop()
+    }
+
+    #[inline]
+    fn last(&self) -> Option<&T> {
+        self.vec[..].last()
+    }
+}
+
 /* All types of history items */
 #[derive(Debug)]
 enum HistoryItem<T> {
@@ -111,16 +150,12 @@ impl<T> ShuffleList<T> {
 
     fn insert(&mut self, ordered: usize, random: usize, item: T) -> HistoryItem<T> {
 
-        println!("INSERT");
-
         if self.shuffle {
             /* the mappings which are after the inserted items are now off by one */
             self.random.iter_mut()
                 .filter(|x| **x >= ordered)
                 .for_each(|x| *x += 1);
         }
-
-        println!("ord: {}, rand: {}", ordered, random);
 
         self.ordered.insert(ordered, item);
         self.random.insert(random, ordered);
@@ -278,15 +313,15 @@ impl<T> Index<usize> for ShuffleList<T> {
 #[derive(Debug)]
 pub struct Playlist<T> {
     items: ShuffleList<T>,
-    history: Vec<HistoryItem<T>>,
+    history: MaxVec<HistoryItem<T>>,
     idx: usize,
 }
 
 impl<T> Playlist<T> {
-    pub fn new() -> Self {
+    pub fn new(histsize: usize) -> Self {
         Playlist {
             items: ShuffleList::new(),
-            history: vec![],
+            history: MaxVec::new(histsize),
             idx: 0,
         }
     }
@@ -310,8 +345,10 @@ impl<T> Playlist<T> {
             }
 
             self.history.push(hist);
-
-            let remove = self.history[self.history.len() - 1].as_remove();
+            let remove = self.history
+                .last()
+                .unwrap()
+                .as_remove();
 
             Some(&remove.item)
         } else {
@@ -321,17 +358,14 @@ impl<T> Playlist<T> {
 
     pub fn clear(&mut self) {
         let hist = self.items.clear();
-
         self.history.push(hist);
         self.idx = 0;
     }
 
     pub fn undo(&mut self) {
-        let _undo = self.history.pop()
-            .map(|x| {
-                self.items.undo(x)
-            });
-
+        let _hist = self.history.pop().map(|x| {
+            self.items.undo(x);
+        });
         self.update();
     }
 

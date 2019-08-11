@@ -31,7 +31,7 @@ fn args<'a, 'b>() -> App<'a, 'b> {
         .subcommand(SubCommand::with_name("current")
             .about("Get current wallpaper"))
         .subcommand(SubCommand::with_name("shuffle")
-            .about("Set shuffle on/off for wallpapers")
+            .about("Set shuffle on/off for wallpapers (default: on)")
             .arg(Arg::with_name("state")
                 .takes_value(true)
                 .default_value("true")
@@ -55,7 +55,12 @@ fn main() -> Result<(), Error> {
          allows us to process commands within a server command */
     let server = match matches.subcommand() {
         ("server", _) => {
-            Some(server())
+            Some(FallibleThread::spawn(|| {
+                Controller::new()?
+                    .server()?
+                    .run()?;
+                Ok(())
+            }))
         },
         _ => None,
     };
@@ -105,7 +110,20 @@ fn main() -> Result<(), Error> {
     match matches.subcommand() {
         ("remove", _) => { controller.remove()?; },
         ("undo", _) => { controller.undo()?; },
-        ("current", _) => { controller.current()?; },
+        ("current", _) => {
+            match controller.current()? {
+                Some(x) => println!("{}", x),
+                None => {}
+            };
+        },
+        ("shuffle", Some(m)) => {
+            let shuf = match m.value_of("state").unwrap() {
+                "on"  | "true" => true,
+                "off" | "false" => false,
+                _ => false,
+            };
+            controller.shuffle(shuf)?;
+        },
         ("next", _) => { controller.next()??; },
         ("prev", _) => { controller.prev()??; },
         _ => {},
@@ -118,13 +136,3 @@ fn main() -> Result<(), Error> {
     }
 }
 
-fn server() -> FallibleThread<(), Error> {
-
-    FallibleThread::spawn(|| {
-        Controller::new()?
-            .server()?
-            .run()?;
-
-        Ok(())
-    })
-}

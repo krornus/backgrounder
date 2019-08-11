@@ -21,7 +21,7 @@ impl Controller {
         let wallpaper = Manager::new()?;
 
         Ok(Controller {
-            playlist: Playlist::new(),
+            playlist: Playlist::new(1000),
             parser: parser,
             wallpaper: wallpaper,
             mode: ImageMode::Max,
@@ -32,10 +32,6 @@ impl Controller {
 #[Converse(backgrounder)]
 impl Controller {
     pub fn add(&mut self, item: &str) {
-
-        println!("***** ADD ******");
-        println!("pre: {:#?}", self.playlist);
-
         let empty = self.playlist.len() == 0;
 
         /* if we cannot load the item, try expanding it */
@@ -49,9 +45,6 @@ impl Controller {
         if empty {
             self.next().map_err(|e| { eprintln!("{}", e); }).ok();
         }
-
-        println!("post: {:#?}", self.playlist);
-        println!("***** ADD ******");
     }
 
     pub fn remove(&mut self) {
@@ -59,19 +52,11 @@ impl Controller {
     }
 
     pub fn clear(&mut self) {
-        println!("***** CLEAR ******");
-        println!("pre: {:#?}", self.playlist);
         self.playlist.clear();
-        println!("post: {:#?}", self.playlist);
-        println!("***** CLEAR ******");
     }
 
     pub fn undo(&mut self) {
-        println!("***** UNDO ******");
-        println!("pre: {:#?}", self.playlist);
         self.playlist.undo();
-        println!("post: {:#?}", self.playlist);
-        println!("***** UNDO ******");
     }
 
     pub fn current(&mut self) -> Option<String> {
