@@ -16,6 +16,8 @@ struct remote {
     CURL *curl;
     buf_t *io;
     int alive;
+    size_t len;
+    int have_len;
 };
 
 struct uri {
@@ -29,10 +31,26 @@ struct uri {
     } un;
 };
 
-static size_t remote_write(char *buf, size_t size, size_t nmemb, void *io)
+static size_t remote_write(char *buf, size_t size, size_t nmemb, void *arg)
 {
     int rv;
-    rv = buf_write(io, buf, size * nmemb);
+    remote_t *rem;
+
+    rem = (remote_t *)arg;
+    if (!rem->have_len) {
+        rv = curl_easy_getinfo(rem->curl,
+                               CURLINFO_CONTENT_LENGTH_DOWNLOAD_T,
+                               (curl_off_t *)&rem->len);
+        if (rv == CURLE_OK) {
+            rem->have_len = 1;
+        }
+    }
+
+    if (rem->have_len) {
+        buf_expand_to(rem->io, rem->len);
+    }
+
+    rv = buf_write(rem->io, buf, size * nmemb);
     if (rv == 0) {
         return size * nmemb;
     } else {
@@ -131,12 +149,13 @@ URI *uopen(const char *path, const char *op)
 
         rem = &uri->un.rem;
         uri->ty = URI_CURL;
-        uri->un.rem.curl = curl_easy_init();
-        uri->un.rem.io = buf_new(12288);
+        rem->curl = curl_easy_init();
+        rem->io = buf_new(2048);
+        rem->have_len = 0;
 
         curl_easy_setopt(uri->un.rem.curl, CURLOPT_URL, path);
         curl_easy_setopt(uri->un.rem.curl, CURLOPT_VERBOSE, 0);
-        curl_easy_setopt(uri->un.rem.curl, CURLOPT_WRITEDATA, rem->io);
+        curl_easy_setopt(uri->un.rem.curl, CURLOPT_WRITEDATA, rem);
         curl_easy_setopt(uri->un.rem.curl, CURLOPT_WRITEFUNCTION, remote_write);
 
         if(!g_multi) {
@@ -210,6 +229,34 @@ int uread(void *buf, size_t size, size_t nmemb, URI *uri)
         return fread(buf, size, nmemb, uri->un.fp);
     } else {
         errno = EBADF;
+        return -1;
+    }
+}
+
+int urewind(URI *uri, size_t len)
+{
+    if (uri->ty == URI_CURL) {
+        return buf_rewind(uri->un.rem.io, len);
+    } else if (uri->ty == URI_FILE) {
+        if (len > LONG_MAX) {
+            /* LONG_MAX can be inverted, and
+             * technically, one more byte can
+             * fit in LONG_MIN, but were ignoring
+             * that */
+            errno = ERANGE;
+            return -1;
+        } else {
+            long off;
+            off = -((long)len);
+            if (fseek(uri->un.fp, off, SEEK_CUR) == 0) {
+                /* TODO/BUG: does fseek fail if we seek back too much? */
+                return len;
+            } else {
+                return -1;
+            }
+        }
+    } else {
+        errno = EINVAL;
         return -1;
     }
 }

@@ -64,17 +64,23 @@ char *buf_ptr(buf_t *io, int close)
 
 int buf_expand(buf_t *io, size_t len)
 {
+    return buf_expand_to(io, io->len + len);
+}
+
+int buf_expand_to(buf_t *io, size_t len)
+{
     void *tmp;
     size_t max, dbl;
 
-    if (io->len + len <= io->cap) {
+    if (len <= io->cap) {
         return 0;
     }
 
     dbl = io->cap * 2;
     /* either double current capacity,
      * or allocate enough for the data */
-    max = dbl > io->len + len ? dbl : io->len + len;
+    max = dbl > len ? dbl : len;
+
     /* reallocate the buffer */
     tmp = realloc(io->buf, max);
     if (!tmp) {
@@ -227,6 +233,7 @@ int buf_rewind(buf_t *io, size_t len)
         io->rndx = io->cap - len;
     }
 
+    io->total -= len;
     io->len += len;
 
     return (int)len;

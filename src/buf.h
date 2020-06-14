@@ -10,6 +10,7 @@ int buf_close(buf_t *io);
 size_t buf_len(buf_t *io);
 char *buf_ptr(buf_t *io, int close);
 int buf_expand(buf_t *io, size_t len);
+int buf_expand_to(buf_t *io, size_t len);
 int buf_write(buf_t *io, const char *buf, size_t len);
 int buf_read(buf_t *io, char *buf, size_t len);
 int buf_rewind(buf_t *io, size_t len);

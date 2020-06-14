@@ -1,9 +1,9 @@
 #include <err.h>
-#include <png.h>
 #include <errno.h>
+#include <stdlib.h>
 
+#include "buf.h"
 #include "img/png.h"
-#include "uri.h"
 
 #define PNG_SIG_LEN 8
 
@@ -19,7 +19,7 @@ static void png_uread(png_struct *png, png_byte *buf, png_size_t len)
 
     read = uread(buf, sizeof(char), len, sp);
     if ((png_size_t)read != len) {
-        errx(1, "png: insufficient read");
+        errx(1, "png: invalid png");
     }
 }
 
@@ -32,6 +32,9 @@ int png_load(URI *fp, png_t *png)
     }
 
     if (png_sig_cmp((png_const_bytep)sig, 0, sizeof(sig)) != 0) {
+        if (urewind(fp, PNG_SIG_LEN) != PNG_SIG_LEN) {
+            errx(1, "png: rewind failed");
+        }
         errno = EINVAL;
         return -1;
     }
@@ -63,27 +66,41 @@ int png_load(URI *fp, png_t *png)
     png_read_info(png->png, png->info);
 
     png->type = png_get_color_type(png->png, png->info);
-    png->width = png_get_image_width(png->png, png->info);
-    png->height = png_get_image_height(png->png, png->info);
-
     png->rowlen = png_get_rowbytes(png->png, png->info);
 
     png->x = 0;
     png->y = 0;
 
-    png->row = png_malloc(png->png, png->rowlen);
-
+    png->row = (png_byte *)png_malloc(png->png, png->rowlen);
     png_read_row(png->png, png->row, NULL);
+
+    if (setjmp(png_jmpbuf(png->png)) != 0) {
+        fprintf(stderr, "unreachable\n");
+        abort();
+    }
 
     return 0;
 }
 
+size_t png_width(png_t *png)
+{
+    return png_get_image_width(png->png, png->info);
+}
+
+size_t png_height(png_t *png)
+{
+    return png_get_image_height(png->png, png->info);
+}
+
 int png_next_pixel(png_t *png, pixel_t *pix)
 {
-    size_t stride;
     png_byte *pixel;
+    size_t stride, width, height;
 
-    if (png->y >= png->height) {
+    width = png_width(png);
+    height = png_height(png);
+
+    if (png->y >= height) {
         return 0;
     }
 
@@ -96,6 +113,11 @@ int png_next_pixel(png_t *png, pixel_t *pix)
         break;
     default:
         errno = EINVAL;
+        return -1;
+    }
+
+    /* fix setjmp */
+    if (setjmp(png_jmpbuf(png->png)) != 0) {
         return -1;
     }
 
@@ -112,13 +134,25 @@ int png_next_pixel(png_t *png, pixel_t *pix)
 
     png->x++;
 
-    if (png->x == png->width) {
+    if (png->x == width) {
         png->x = 0;
         png->y++;
-        if (png->y < png->height) {
+        if (png->y < height) {
             png_read_row(png->png, png->row, NULL);
         }
     }
 
+    if (setjmp(png_jmpbuf(png->png)) != 0) {
+        fprintf(stderr, "unreachable\n");
+        abort();
+    }
+
     return 1;
+}
+
+void png_close(png_t *png)
+{
+    png_destroy_info_struct(png->png, &png->info);
+    png_destroy_read_struct(&png->png, NULL, NULL);
+    free(png->row);
 }
