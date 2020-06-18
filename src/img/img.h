@@ -1,7 +1,6 @@
 #ifndef img_h_INCLUDED
 #define img_h_INCLUDED
 
-#include "img/pixel.h"
 #include "img/png.h"
 #include "img/jpeg.h"
 #include "uri.h"
@@ -27,7 +26,8 @@ void img_close(img_t *img);
 
 size_t img_width(img_t *img);
 size_t img_height(img_t *img);
+size_t img_depth(img_t *img);
 
-int img_next_pixel(img_t *img, pixel_t *pix);
+uint8_t *img_raw(img_t *img);
 
 #endif // img_h_INCLUDED

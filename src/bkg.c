@@ -4,8 +4,8 @@
 #include <stddef.h>
 #include <stdio.h>
 
-#include "img.h"
 #include "uri.h"
+#include "img/img.h"
 
 int usage()
 {
@@ -17,7 +17,7 @@ int main(int argc, char *const argv[])
 {
     URI *fp;
     img_t img;
-    pixel_t pix;
+    uint8_t *raw;
 
     for (int i = 1; i < argc; i++) {
         fp = uopen(argv[i], "r");
@@ -25,11 +25,18 @@ int main(int argc, char *const argv[])
         if (fp) {
             if (img_load(fp, &img) == 0) {
                 printf("%s: [%zdx%zd]\n", argv[i], img_width(&img), img_height(&img));
-                while (img_next_pixel(&img, &pix) > 0) {
-                    printf("  [%zdx%zd]: #%02x%02x%02x\n",
-                           pix.x, pix.y, pix.r, pix.g, pix.b);
+                raw = img_raw(&img);
+                for (size_t w = 0; w < img_width(&img); w++) {
+                    for (size_t h = 0; h < img_height(&img); h++) {
+                    }
                 }
+                if (raw) {
+                    free(raw);
+                }
+                img_close(&img);
             }
+
+            uclose(fp);
         } else {
             warn("%s", argv[i]);
         }

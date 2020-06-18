@@ -65,17 +65,8 @@ int png_load(URI *fp, png_t *png)
 
     png_read_info(png->png, png->info);
 
-    png->type = png_get_color_type(png->png, png->info);
-    png->rowlen = png_get_rowbytes(png->png, png->info);
-
-    png->x = 0;
-    png->y = 0;
-
-    png->row = (png_byte *)png_malloc(png->png, png->rowlen);
-    png_read_row(png->png, png->row, NULL);
-
     if (setjmp(png_jmpbuf(png->png)) != 0) {
-        fprintf(stderr, "unreachable\n");
+        fprintf(stderr, "png_load(): unreachable\n");
         abort();
     }
 
@@ -92,67 +83,67 @@ size_t png_height(png_t *png)
     return png_get_image_height(png->png, png->info);
 }
 
-int png_next_pixel(png_t *png, pixel_t *pix)
+size_t png_depth(png_t *png)
 {
-    png_byte *pixel;
-    size_t stride, width, height;
+    int type;
+
+    type = png_get_color_type(png->png, png->info);
+    if (type == PNG_COLOR_TYPE_RGB) {
+        return 3;
+    } else if (type == PNG_COLOR_TYPE_RGBA) {
+        return 4;
+    } else {
+        errx(1, "unsupported png color type");
+    }
+}
+
+uint8_t *png_raw(png_t *png)
+{
+    uint8_t *raw;
+    size_t width, height, depth;
+    png_bytepp image;
+    png_uint_32 rowlen;
+
+    if (setjmp(png_jmpbuf(png->png)) != 0) {
+        free(raw);
+        free(image);
+        return NULL;
+    }
+
+    raw = NULL;
+    image = NULL;
 
     width = png_width(png);
     height = png_height(png);
+    depth = png_depth(png);
 
-    if (png->y >= height) {
-        return 0;
+    raw = (uint8_t *)malloc(width * depth * height);
+    if (!raw) {
+        return NULL;
     }
 
-    switch (png->type) {
-    case PNG_COLOR_TYPE_RGB:
-        stride = 3;
-        break;
-    case PNG_COLOR_TYPE_RGBA:
-        stride = 4;
-        break;
-    default:
-        errno = EINVAL;
-        return -1;
+    image = (png_bytepp)malloc(sizeof(png_bytep) * height);
+    if (!image) {
+        return NULL;
     }
 
-    /* fix setjmp */
-    if (setjmp(png_jmpbuf(png->png)) != 0) {
-        return -1;
+    rowlen = png_get_rowbytes(png->png, png->info);
+    for (size_t i = 0; i < height; i++) {
+        image[i] = raw + (i * rowlen);
     }
 
-    pixel = &png->row[png->x*stride];
-    pix->x = png->x;
-    pix->y = png->y;
-    pix->r = pixel[0];
-    pix->g = pixel[1];
-    pix->b = pixel[2];
-
-    if (png->type == PNG_COLOR_TYPE_RGBA) {
-        pix->a = pixel[3];
-    }
-
-    png->x++;
-
-    if (png->x == width) {
-        png->x = 0;
-        png->y++;
-        if (png->y < height) {
-            png_read_row(png->png, png->row, NULL);
-        }
-    }
+    png_read_image(png->png, image);
 
     if (setjmp(png_jmpbuf(png->png)) != 0) {
-        fprintf(stderr, "unreachable\n");
+        fprintf(stderr, "png_raw(): unreachable\n");
         abort();
     }
 
-    return 1;
+    return raw;
 }
 
 void png_close(png_t *png)
 {
     png_destroy_info_struct(png->png, &png->info);
     png_destroy_read_struct(&png->png, NULL, NULL);
-    free(png->row);
 }

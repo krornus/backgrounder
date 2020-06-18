@@ -104,8 +104,6 @@ static void jpeg_uri_src(j_decompress_ptr cinfo, URI *fp)
 
 int jpeg_load(URI *fp, jpeg_t *jpeg)
 {
-    JDIMENSION stride;
-
     jpeg->cinfo.err = jpeg_std_error(&jpeg->jerr.pub);
     jpeg->jerr.pub.error_exit = jpeg_error;
 
@@ -120,19 +118,9 @@ int jpeg_load(URI *fp, jpeg_t *jpeg)
     jpeg_read_header(&jpeg->cinfo, TRUE);
     jpeg_start_decompress(&jpeg->cinfo);
 
-    stride = jpeg->cinfo.output_width * jpeg->cinfo.output_components;
-    /* allocate a sample array for the buffer (single row) */
-    jpeg->row = (*jpeg->cinfo.mem->alloc_sarray)(
-                                        (j_common_ptr)&jpeg->cinfo,
-                                        JPOOL_IMAGE,
-                                        stride,
-                                        1);
-
-    jpeg_read_scanlines(&jpeg->cinfo, jpeg->row, 1);
-
     if (setjmp(jpeg->jerr.env)) {
         /* abort if a jpeg error occurs after this */
-        fprintf(stderr, "unreachable\n");
+        fprintf(stderr, "jpeg_load(): unreachable\n");
         abort();
     }
 
@@ -149,46 +137,54 @@ size_t jpeg_height(jpeg_t *jpeg)
     return (size_t)jpeg->cinfo.image_height;
 }
 
-int jpeg_next_pixel(jpeg_t *jpeg, pixel_t *pix)
+size_t jpeg_depth(jpeg_t *jpeg)
 {
-    unsigned char *pixel, *row;
+    return (size_t)jpeg->cinfo.num_components;
+}
+
+uint8_t *jpeg_raw(jpeg_t *jpeg)
+{
+    uint8_t *raw;
+    size_t width, height, depth;
+    JDIMENSION rowlen;
+    JSAMPARRAY image;
+
+    raw = NULL;
+    image = NULL;
 
     if (setjmp(jpeg->jerr.env)) {
-        return -1;
+        free(raw);
+        free(image);
+        return NULL;
     }
 
-    if (jpeg->cinfo.output_scanline >= jpeg->cinfo.output_height) {
-        return 0;
+    width = jpeg_width(jpeg);
+    height = jpeg_height(jpeg);
+    depth = jpeg_depth(jpeg);
+
+    raw = (uint8_t *)malloc(width * depth * height);
+    if (!raw) {
+        return NULL;
     }
 
-    row = (unsigned char *)(jpeg->row[0]);
-    pixel = &row[jpeg->x*jpeg->cinfo.output_components];
-    pix->x = jpeg->x;
-    pix->y = jpeg->cinfo.output_scanline;
-    pix->r = pixel[0];
-    pix->g = pixel[1];
-    pix->b = pixel[2];
-
-    if (jpeg->cinfo.output_components == 4) {
-        pix->a = pixel[3];
+    image = (JSAMPARRAY)malloc(sizeof(JSAMPROW) * height);
+    if (!image) {
+        return NULL;
     }
 
-    jpeg->x++;
-
-    if (jpeg->x == jpeg_width(jpeg)) {
-        jpeg->x = 0;
-        if (jpeg->cinfo.output_scanline < jpeg->cinfo.output_height) {
-            jpeg_read_scanlines(&jpeg->cinfo, jpeg->row, 1);
-        }
+    rowlen = jpeg->cinfo.output_width * jpeg->cinfo.output_components;
+    for (size_t i = 0; i < height; i++) {
+        image[i] = raw + (i * rowlen);
     }
+
+    jpeg_read_scanlines(&jpeg->cinfo, image, height);
 
     if (setjmp(jpeg->jerr.env)) {
-        /* abort if a jpeg error occurs after this */
-        fprintf(stderr, "unreachable\n");
+        fprintf(stderr, "jpeg_raw(): unreachable\n");
         abort();
     }
 
-    return 1;
+    return raw;
 }
 
 void jpeg_close(jpeg_t *jpeg)

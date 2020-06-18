@@ -12,7 +12,7 @@ CFLAGS += -ggdb
 
 LDLIBS := -lcurl -lpng -ljpeg
 
-OBJ := bkg.o buf.o uri.o img.o img/png.o img/jpeg.o
+OBJ := bkg.o buf.o uri.o img/png.o img/jpeg.o img/img.o
 DEP := $(OBJ:.o=.d)
 
 .PHONY: all

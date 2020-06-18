@@ -42,16 +42,16 @@ size_t img_height(img_t *img)
     }
 }
 
-int img_next_pixel(img_t *img, pixel_t *pix)
+uint8_t *img_raw(img_t *img)
 {
     switch (img->ty) {
     case IMG_TY_PNG:
-        return png_next_pixel(&img->un.png, pix);
+        return png_raw(&img->un.png);
     case IMG_TY_JPEG:
-        return jpeg_next_pixel(&img->un.jpeg, pix);
+        return jpeg_raw(&img->un.jpeg);
     default:
         errno = EINVAL;
-        return -1;
+        return NULL;
     }
 }
 
