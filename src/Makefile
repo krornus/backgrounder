@@ -10,7 +10,7 @@ CFLAGS += -D_GNU_SOURCE
 CFLAGS += -I.
 CFLAGS += -ggdb
 
-LDLIBS := -lcurl -lpng -ljpeg
+LDLIBS := -lcurl -lpng -ljpeg -lX11 -limlib2
 
 OBJ := bkg.o buf.o uri.o img/png.o img/jpeg.o img/img.o
 DEP := $(OBJ:.o=.d)
@@ -22,6 +22,8 @@ all: $(TARGET)
 clean:
 	$(RM) $(OBJ) $(DEP) $(TARGET)
 
--include $(DEPS)
+-include $(DEP)
+
+$(OBJ): Makefile
 
 $(TARGET): $(OBJ)

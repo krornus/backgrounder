@@ -1,6 +1,9 @@
 #include <err.h>
 #include <errno.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
+#include <assert.h>
 #include <string.h>
 #include <unistd.h>
 #include <curl/curl.h>
@@ -8,11 +11,15 @@
 #include "uri.h"
 #include "buf.h"
 
-typedef struct remote remote_t;
+#ifndef OFF64_MAX
+#define OFF64_MAX INT64_MAX
+#endif
+
+typedef struct uri uri_t;
 
 static CURLM *g_multi;
 
-struct remote {
+struct uri {
     CURL *curl;
     buf_t *io;
     int alive;
@@ -20,37 +27,26 @@ struct remote {
     int have_len;
 };
 
-struct uri {
-    enum {
-        URI_FILE,
-        URI_CURL,
-    } ty;
-    union {
-        FILE *fp;
-        remote_t rem;
-    } un;
-};
-
-static size_t remote_write(char *buf, size_t size, size_t nmemb, void *arg)
+static size_t uri_write(char *buf, size_t size, size_t nmemb, void *arg)
 {
     int rv;
-    remote_t *rem;
+    uri_t *uri;
 
-    rem = (remote_t *)arg;
-    if (!rem->have_len) {
-        rv = curl_easy_getinfo(rem->curl,
+    uri = (uri_t *)arg;
+    if (!uri->have_len) {
+        rv = curl_easy_getinfo(uri->curl,
                                CURLINFO_CONTENT_LENGTH_DOWNLOAD_T,
-                               (curl_off_t *)&rem->len);
+                               (curl_off_t *)&uri->len);
         if (rv == CURLE_OK) {
-            rem->have_len = 1;
+            uri->have_len = 1;
         }
     }
 
-    if (rem->have_len) {
-        buf_expand_to(rem->io, rem->len);
+    if (uri->have_len) {
+        buf_expand_to(uri->io, uri->len);
     }
 
-    rv = buf_write(rem->io, buf, size * nmemb);
+    rv = buf_write(uri->io, buf, size * nmemb);
     if (rv == 0) {
         return size * nmemb;
     } else {
@@ -58,7 +54,7 @@ static size_t remote_write(char *buf, size_t size, size_t nmemb, void *arg)
     }
 }
 
-static int remote_read(URI *uri, size_t len)
+static int uri_read(uri_t *uri, size_t len)
 {
     int maxfd;
     int rv;
@@ -68,10 +64,7 @@ static int remote_read(URI *uri, size_t len)
     struct timeval timeout;
     long curl_timeout;
 
-    remote_t *rem;
-
-    rem = &uri->un.rem;
-    if (!rem->alive || buf_len(rem->io) >= len) {
+    if (!uri->alive || buf_len(uri->io) >= len) {
         return 0;
     }
 
@@ -120,143 +113,170 @@ static int remote_read(URI *uri, size_t len)
 
         if (rv >= 0) {
             /* perform the read */
-            curl_multi_perform(g_multi, &rem->alive);
+            curl_multi_perform(g_multi, &uri->alive);
         }
-    } while(rv >= 0 && rem->alive && buf_len(rem->io) < len);
+    } while(rv >= 0 && uri->alive && buf_len(uri->io) < len);
 
     return 0;
 }
 
-URI *uopen(const char *path, const char *op)
+static int uclose(uri_t *uri)
 {
-    URI *uri;
-
-    if (strcmp(op, "r") != 0) {
-        errno = EINVAL;
-        return NULL;
+    if (uri) {
+        buf_close(uri->io);
+        curl_multi_remove_handle(g_multi, uri->curl);
+        curl_easy_cleanup(uri->curl);
+        free(uri);
     }
 
-    uri = malloc(sizeof(URI));
+    return 0;
+}
+
+static ssize_t uread(uri_t *uri, char *buf, size_t size)
+{
+    int rv;
+
+    if (uri_read(uri, size) < 0) {
+        return EOF;
+    } else if (!buf_len(uri->io)) {
+        return 0;
+    }
+
+    rv = buf_read(uri->io, buf, size);
+    if (rv < 0) {
+        return EOF;
+    } else {
+        return rv;
+    }
+}
+
+static int useek(uri_t *uri, off64_t *offset, int whence)
+{
+    int rewind;
+    size_t len, loc;
+
+    if (whence == SEEK_SET) {
+        if (*offset < 0) {
+            errno = EINVAL;
+            return -1;
+        } else {
+            if ((size_t)*offset < buf_tell(uri->io)) {
+                rewind = 1;
+                len = (size_t)(buf_tell(uri->io) - *offset);
+            } else {
+                rewind = 0;
+                len = (size_t)(*offset - buf_tell(uri->io));
+            }
+        }
+    } else if (whence == SEEK_CUR) {
+        if (*offset > 0) {
+            rewind = 0;
+            len = (size_t)*offset;
+        } else {
+            rewind = 1;
+            len = (size_t)(*offset * -1);
+        }
+    } else if (whence == SEEK_END) {
+        if (*offset > 0) {
+            errno = EINVAL;
+            return -1;
+        } else {
+            /* read everything */
+            if (uri_read(uri, SIZE_MAX) < 0) {
+                return -1;
+            }
+
+            /* seek to end */
+            buf_seek(uri->io, buf_len(uri->io));
+            assert(!buf_len(uri->io));
+
+            /* now just rewind */
+            rewind = 1;
+            len = (size_t)(*offset * -1);
+        }
+    }
+
+    if (!rewind) {
+        /* uri read will exit early if we have enough */
+        if (uri_read(uri, len) < 0) {
+            return -1;
+        }
+        /* now skip */
+        buf_seek(uri->io, len);
+    } else {
+        /* go backwards by amount, this may
+         * be less than requested */
+        buf_rewind(uri->io, len);
+    }
+
+    /* update offset */
+    loc = buf_tell(uri->io);
+    if (loc > OFF64_MAX) {
+        errno = EOVERFLOW;
+        return -1;
+    } else {
+        *offset = (off64_t)loc;
+    }
+
+    return 0;
+}
+
+static cookie_io_functions_t uri_io_funcs = {
+    .read = (cookie_read_function_t *)uread,
+    .seek = (cookie_seek_function_t *)useek,
+    .close = (cookie_close_function_t *)uclose,
+};
+
+FILE *uopen(const char *path)
+{
+    FILE *fp;
+    uri_t *uri;
+
+    /* short-circuit to file */
+    fp = fopen(path, "r");
+    if (fp) {
+        return fp;
+    }
+
+    uri = malloc(sizeof(uri_t));
     if (!uri) {
         return NULL;
     }
 
-    uri->un.fp = fopen(path, op);
-    if (uri->un.fp) {
-        uri->ty = URI_FILE;
-    } else {
-        remote_t *rem;
+    uri->curl = curl_easy_init();
+    uri->io = buf_new(2048);
+    uri->have_len = 0;
 
-        rem = &uri->un.rem;
-        uri->ty = URI_CURL;
-        rem->curl = curl_easy_init();
-        rem->io = buf_new(2048);
-        rem->have_len = 0;
+    curl_easy_setopt(uri->curl, CURLOPT_URL, path);
+    curl_easy_setopt(uri->curl, CURLOPT_VERBOSE, 0);
+    curl_easy_setopt(uri->curl, CURLOPT_WRITEDATA, uri);
+    curl_easy_setopt(uri->curl, CURLOPT_WRITEFUNCTION, uri_write);
 
-        curl_easy_setopt(uri->un.rem.curl, CURLOPT_URL, path);
-        curl_easy_setopt(uri->un.rem.curl, CURLOPT_VERBOSE, 0);
-        curl_easy_setopt(uri->un.rem.curl, CURLOPT_WRITEDATA, rem);
-        curl_easy_setopt(uri->un.rem.curl, CURLOPT_WRITEFUNCTION, remote_write);
-
-        if(!g_multi) {
-            g_multi = curl_multi_init();
-            if (!g_multi) {
-                err(EXIT_FAILURE, "failed to initialize curl");
-            }
-        }
-
-        if (curl_multi_add_handle(g_multi, rem->curl) != CURLM_OK) {
-            buf_close(rem->io);
-            free(uri);
-            return NULL;
-        }
-
-        if (curl_multi_perform(g_multi, &rem->alive) != CURLM_OK) {
-            buf_close(rem->io);
-            curl_multi_remove_handle(g_multi, rem->curl);
-            free(uri);
-            return NULL;
-        }
-
-        if (!buf_len(rem->io) && !rem->alive) {
-            errno = ENOENT;
-            uclose(uri);
-            return NULL;
+    if(!g_multi) {
+        g_multi = curl_multi_init();
+        if (!g_multi) {
+            err(EXIT_FAILURE, "failed to initialize curl");
         }
     }
 
-    return uri;
-}
-
-void uclose(URI *uri)
-{
-    if (uri) {
-        if (uri->ty == URI_CURL) {
-            remote_t *rem;
-
-            rem = &uri->un.rem;
-
-            buf_close(rem->io);
-            curl_multi_remove_handle(g_multi, rem->curl);
-            curl_easy_cleanup(rem->curl);
-        } else if (uri->ty == URI_FILE) {
-            fclose(uri->un.fp);
-        }
+    if (curl_multi_add_handle(g_multi, uri->curl) != CURLM_OK) {
+        buf_close(uri->io);
         free(uri);
+        return NULL;
     }
-}
 
-int uread(void *buf, size_t size, size_t nmemb, URI *uri)
-{
-    if (uri->ty == URI_CURL) {
-        size_t len;
-        remote_t *rem;
-
-        rem = &uri->un.rem;
-        len = size * nmemb;
-
-        if (remote_read(uri, len) < 0) {
-            err(EXIT_FAILURE, "remote_read()");
-            return -1;
-        }
-
-        if (!buf_len(rem->io)) {
-            return 0;
-        }
-
-        return buf_read(rem->io, buf, len) / size;
-    } else if (uri->ty == URI_FILE) {
-        return fread(buf, size, nmemb, uri->un.fp);
-    } else {
-        errno = EBADF;
-        return -1;
+    if (curl_multi_perform(g_multi, &uri->alive) != CURLM_OK) {
+        buf_close(uri->io);
+        curl_multi_remove_handle(g_multi, uri->curl);
+        free(uri);
+        return NULL;
     }
-}
 
-int urewind(URI *uri, size_t len)
-{
-    if (uri->ty == URI_CURL) {
-        return buf_rewind(uri->un.rem.io, len);
-    } else if (uri->ty == URI_FILE) {
-        if (len > LONG_MAX) {
-            /* LONG_MAX can be inverted, and
-             * technically, one more byte can
-             * fit in LONG_MIN, but were ignoring
-             * that */
-            errno = ERANGE;
-            return -1;
-        } else {
-            long off;
-            off = -((long)len);
-            if (fseek(uri->un.fp, off, SEEK_CUR) == 0) {
-                /* TODO/BUG: does fseek fail if we seek back too much? */
-                return len;
-            } else {
-                return -1;
-            }
-        }
-    } else {
-        errno = EINVAL;
-        return -1;
+    if (!buf_len(uri->io) && !uri->alive) {
+        errno = ENOENT;
+        uclose(uri);
+        return NULL;
     }
+
+    return fopencookie(uri, "r", uri_io_funcs);
 }

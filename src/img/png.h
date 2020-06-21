@@ -13,7 +13,7 @@ struct png {
     png_info *info;
 };
 
-int png_load(URI *fp, png_t *png);
+int png_load(FILE *fp, png_t *png);
 void png_close(png_t *png);
 
 size_t png_width(png_t *png);

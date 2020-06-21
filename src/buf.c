@@ -12,7 +12,7 @@ struct buf {
     size_t pndx;
     size_t cap;
     size_t len;
-    size_t rwlen;
+    size_t plen;
     size_t total;
 };
 
@@ -135,12 +135,12 @@ int buf_write(buf_t *io, const char *buf, size_t len)
 
         /* if pndx should be moved */
         if ((io->pndx > io->wndx ||
-            (io->pndx == io->wndx && io->rwlen)) &&
+            (io->pndx == io->wndx && io->plen)) &&
             io->wndx + len > io->pndx)
         {
             /* rewind index is being moved by this write */
             io->wndx = next;
-            io->rwlen = io->rwlen - next - io->pndx;
+            io->plen = io->plen - next - io->pndx;
             io->pndx = next;
         } else {
             io->wndx = io->wndx + len;
@@ -158,12 +158,12 @@ int buf_write(buf_t *io, const char *buf, size_t len)
         memcpy(io->buf, buf + fwd, bkwd);
 
         if (io->pndx >= io->wndx) {
-            io->rwlen -= len - (io->pndx - io->wndx);
+            io->plen -= len - (io->pndx - io->wndx);
             io->wndx = bkwd;
             io->pndx = io->wndx;
         } else if (bkwd > io->pndx) {
             io->wndx = bkwd;
-            io->rwlen = io->rwlen - (bkwd - io->pndx);
+            io->plen = io->plen - (bkwd - io->pndx);
             io->pndx = io->wndx;
         } else {
             io->wndx = bkwd;
@@ -215,26 +215,42 @@ int buf_read(buf_t *io, char *buf, size_t len)
     }
 
     io->len -= len;
-    io->rwlen += len;
+    io->plen += len;
 
     return (int)len;
 }
 
-int buf_rewind(buf_t *io, size_t len)
+size_t buf_rewind(buf_t *io, size_t len)
 {
-    /* clamp length to max possible */
-    len = len > INT_MAX ? INT_MAX : len;
-    len = len > io->rwlen ? io->rwlen : len;
+    len = len > io->plen ? io->plen : len;
 
-    io->rwlen -= len;
+    io->plen -= len;
     if (len <= io->rndx) {
         io->rndx -= len;
     } else {
         io->rndx = io->cap - len;
     }
 
-    io->total -= len;
     io->len += len;
 
-    return (int)len;
+    return len;
+}
+
+size_t buf_seek(buf_t *io, size_t len)
+{
+    size_t next;
+
+    len = len > io->len ? io->len : len;
+
+    next = (io->rndx + len) % io->cap;
+    io->rndx = next;
+    io->len -= len;
+    io->plen += len;
+
+    return len;
+}
+
+size_t buf_tell(buf_t *io)
+{
+    return io->total - io->len;
 }

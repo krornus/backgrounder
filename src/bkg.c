@@ -15,28 +15,25 @@ int usage()
 
 int main(int argc, char *const argv[])
 {
-    URI *fp;
+    FILE *fp;
     img_t img;
     uint8_t *raw;
 
     for (int i = 1; i < argc; i++) {
-        fp = uopen(argv[i], "r");
+        fp = uopen(argv[i]);
 
         if (fp) {
             if (img_load(fp, &img) == 0) {
                 printf("%s: [%zdx%zd]\n", argv[i], img_width(&img), img_height(&img));
                 raw = img_raw(&img);
-                for (size_t w = 0; w < img_width(&img); w++) {
-                    for (size_t h = 0; h < img_height(&img); h++) {
-                    }
-                }
+
                 if (raw) {
                     free(raw);
                 }
                 img_close(&img);
             }
 
-            uclose(fp);
+            fclose(fp);
         } else {
             warn("%s", argv[i]);
         }

@@ -4,13 +4,13 @@
 
 #include "img.h"
 
-int img_load(URI *fp, img_t *img)
+int img_load(FILE *fp, img_t *img)
 {
-    if (png_load(fp, &img->un.png) == 0) {
-        img->ty = IMG_TY_PNG;
-        return 0;
-    } else if (jpeg_load(fp, &img->un.jpeg) == 0) {
+    if (jpeg_load(fp, &img->un.jpeg) == 0) {
         img->ty = IMG_TY_JPEG;
+        return 0;
+    } else if (png_load(fp, &img->un.png) == 0) {
+        img->ty = IMG_TY_PNG;
         return 0;
     } else {
         errno = EINVAL;
@@ -37,6 +37,18 @@ size_t img_height(img_t *img)
         return png_height(&img->un.png);
     case IMG_TY_JPEG:
         return jpeg_height(&img->un.jpeg);
+    default:
+        abort();
+    }
+}
+
+size_t img_depth(img_t *img)
+{
+    switch (img->ty) {
+    case IMG_TY_PNG:
+        return png_depth(&img->un.png);
+    case IMG_TY_JPEG:
+        return jpeg_depth(&img->un.jpeg);
     default:
         abort();
     }

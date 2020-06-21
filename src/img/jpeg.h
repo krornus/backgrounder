@@ -20,11 +20,12 @@ struct jpeg {
     struct error_mgr jerr;
 };
 
-int jpeg_load(URI *fp, jpeg_t *jpeg);
+int jpeg_load(FILE *fp, jpeg_t *jpeg);
 void jpeg_close(jpeg_t *jpeg);
 
 size_t jpeg_width(jpeg_t *jpeg);
 size_t jpeg_height(jpeg_t *jpeg);
+size_t jpeg_depth(jpeg_t *jpeg);
 
 uint8_t *jpeg_raw(jpeg_t *jpeg);
 

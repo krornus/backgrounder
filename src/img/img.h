@@ -1,8 +1,8 @@
 #ifndef img_h_INCLUDED
 #define img_h_INCLUDED
 
-#include "img/png.h"
-#include "img/jpeg.h"
+#include "png.h"
+#include "jpeg.h"
 #include "uri.h"
 
 typedef struct img img_t;
@@ -21,7 +21,7 @@ struct img {
     } un;
 };
 
-int img_load(URI *fp, img_t *img);
+int img_load(FILE *fp, img_t *img);
 void img_close(img_t *img);
 
 size_t img_width(img_t *img);

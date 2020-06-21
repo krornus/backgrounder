@@ -2,37 +2,20 @@
 #include <errno.h>
 #include <stdlib.h>
 
-#include "buf.h"
 #include "img/png.h"
 
 #define PNG_SIG_LEN 8
 
-static void png_uread(png_struct *png, png_byte *buf, png_size_t len)
-{
-    URI *sp;
-    size_t read;
-
-    sp = (URI *)png_get_io_ptr(png);
-    if (!sp) {
-        errx(1, "png: read failed");
-    }
-
-    read = uread(buf, sizeof(char), len, sp);
-    if ((png_size_t)read != len) {
-        errx(1, "png: invalid png");
-    }
-}
-
-int png_load(URI *fp, png_t *png)
+int png_load(FILE *fp, png_t *png)
 {
     char sig[PNG_SIG_LEN];
 
-    if (uread(sig, sizeof(char), sizeof(sig), fp) != sizeof(sig)) {
+    if (fread(sig, sizeof(char), sizeof(sig), fp) != sizeof(sig)) {
         return -1;
     }
 
     if (png_sig_cmp((png_const_bytep)sig, 0, sizeof(sig)) != 0) {
-        if (urewind(fp, PNG_SIG_LEN) != PNG_SIG_LEN) {
+        if (fseek(fp, SEEK_SET, 0) != 0 || ftell(fp) != 0) {
             errx(1, "png: rewind failed");
         }
         errno = EINVAL;
@@ -60,9 +43,8 @@ int png_load(URI *fp, png_t *png)
         return -1;
     }
 
-    png_set_read_fn(png->png, fp, png_uread);
+    png_init_io(png->png, fp);
     png_set_sig_bytes(png->png, PNG_SIG_LEN);
-
     png_read_info(png->png, png->info);
 
     if (setjmp(png_jmpbuf(png->png)) != 0) {
