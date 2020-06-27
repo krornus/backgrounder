@@ -68,6 +68,7 @@ static int uri_read(uri_t *uri, size_t len)
         return 0;
     }
 
+
     /* read in a loop until select reports that
      * the read would block, or the length is
      * satisfied */
@@ -120,21 +121,25 @@ static int uri_read(uri_t *uri, size_t len)
     return 0;
 }
 
-static int uclose(uri_t *uri)
+static int uclose(void *cookie)
 {
-    if (uri) {
-        buf_close(uri->io);
-        curl_multi_remove_handle(g_multi, uri->curl);
-        curl_easy_cleanup(uri->curl);
-        free(uri);
-    }
+    uri_t *uri;
+
+    uri = (uri_t *)cookie;
+    buf_close(uri->io);
+    curl_multi_remove_handle(g_multi, uri->curl);
+    curl_easy_cleanup(uri->curl);
+    free(uri);
 
     return 0;
 }
 
-static ssize_t uread(uri_t *uri, char *buf, size_t size)
+static ssize_t uread(void *cookie, char *buf, size_t size)
 {
     int rv;
+    uri_t *uri;
+
+    uri = (uri_t *)cookie;
 
     if (uri_read(uri, size) < 0) {
         return EOF;
@@ -150,13 +155,17 @@ static ssize_t uread(uri_t *uri, char *buf, size_t size)
     }
 }
 
-static int useek(uri_t *uri, off64_t *offset, int whence)
+static int useek(void *cookie, off64_t *offset, int whence)
 {
     int rewind;
     size_t len, loc;
+    uri_t *uri;
 
+    uri = (uri_t *)cookie;
+    len = 0;
     if (whence == SEEK_SET) {
         if (*offset < 0) {
+            warnx("negative set offset");
             errno = EINVAL;
             return -1;
         } else {
@@ -178,11 +187,13 @@ static int useek(uri_t *uri, off64_t *offset, int whence)
         }
     } else if (whence == SEEK_END) {
         if (*offset > 0) {
+            warnx("positive end offset");
             errno = EINVAL;
             return -1;
         } else {
             /* read everything */
             if (uri_read(uri, SIZE_MAX) < 0) {
+                warn("uri_read()");
                 return -1;
             }
 
@@ -196,17 +207,20 @@ static int useek(uri_t *uri, off64_t *offset, int whence)
         }
     }
 
-    if (!rewind) {
-        /* uri read will exit early if we have enough */
-        if (uri_read(uri, len) < 0) {
-            return -1;
+    if (len) {
+        if (!rewind) {
+            /* uri read will exit early if we have enough */
+            if (uri_read(uri, len) < 0) {
+                warn("uri_read()");
+                return -1;
+            }
+            /* now skip */
+            buf_seek(uri->io, len);
+        } else {
+            /* go backwards by amount, this may
+             * be less than requested */
+            buf_rewind(uri->io, len);
         }
-        /* now skip */
-        buf_seek(uri->io, len);
-    } else {
-        /* go backwards by amount, this may
-         * be less than requested */
-        buf_rewind(uri->io, len);
     }
 
     /* update offset */
@@ -222,9 +236,9 @@ static int useek(uri_t *uri, off64_t *offset, int whence)
 }
 
 static cookie_io_functions_t uri_io_funcs = {
-    .read = (cookie_read_function_t *)uread,
-    .seek = (cookie_seek_function_t *)useek,
-    .close = (cookie_close_function_t *)uclose,
+    .read = uread,
+    .seek = useek,
+    .close = uclose,
 };
 
 FILE *uopen(const char *path)

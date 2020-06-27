@@ -10,9 +10,9 @@ CFLAGS += -D_GNU_SOURCE
 CFLAGS += -I.
 CFLAGS += -ggdb
 
-LDLIBS := -lcurl -lpng -ljpeg -lX11 -limlib2
+LDLIBS := -lcurl -lImlib2 -lX11
 
-OBJ := bkg.o buf.o uri.o img/png.o img/jpeg.o img/img.o
+OBJ := bkg.o buf.o uri.o img.o
 DEP := $(OBJ:.o=.d)
 
 .PHONY: all
