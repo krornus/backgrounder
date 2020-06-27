@@ -12,6 +12,7 @@ Display *disp;
 Window root;
 Visual *vis;
 Screen *scr;
+Colormap cm;
 
 int img_copy(const char *path, const char *uri)
 {
@@ -121,9 +122,11 @@ void img_xinit(Display *display)
     root = RootWindow(disp, DefaultScreen(disp));
     vis = DefaultVisual(disp, DefaultScreen(disp));
     scr = ScreenOfDisplay(disp, DefaultScreen(disp));
+    cm = DefaultColormap(disp, DefaultScreen(disp));
 
     imlib_context_set_display(disp);
     imlib_context_set_visual(vis);
+	imlib_context_set_colormap(cm);
 }
 
 static void img_set_center(int x, int y)
@@ -218,6 +221,9 @@ int img_set(const char *path, int mode)
     Imlib_Image im;
     Pixmap drawable;
     Atom prop_root, prop_esetroot;
+    XColor color;
+    XGCValues gcvalue;
+    GC gc;
 
     im = imlib_load_image(path);
     if (!im) {
@@ -226,6 +232,13 @@ int img_set(const char *path, int mode)
 
     depth = DefaultDepth(disp, DefaultScreen(disp));
     drawable = XCreatePixmap(disp, root, scr->width, scr->height, depth);
+
+    XAllocNamedColor(disp, cm, "black", &color, &color);
+    gcvalue.foreground = color.pixel;
+    gc = XCreateGC(disp, drawable, GCForeground, &gcvalue);
+    XFillRectangle(disp, drawable, gc, 0, 0, scr->width, scr->height);
+    XFreeGC(disp, gc);
+    XSync(disp, False);
 
     imlib_context_set_image(im);
     imlib_context_set_drawable(drawable);

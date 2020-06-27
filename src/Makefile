@@ -8,7 +8,7 @@ CFLAGS += -Wall -Wpedantic -Wextra -Wformat=2
 CFLAGS += -MMD
 CFLAGS += -D_GNU_SOURCE
 CFLAGS += -I.
-CFLAGS += -ggdb
+CFLAGS += -O3
 
 LDLIBS := -lcurl -lImlib2 -lX11
 
