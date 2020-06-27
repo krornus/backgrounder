@@ -215,7 +215,7 @@ static void img_set_max(int x, int y)
         render_w, render_h);
 }
 
-int img_set(const char *path, int mode)
+int img_set(const char *path, int mode, const char *bgcolor)
 {
     int depth;
     Imlib_Image im;
@@ -233,7 +233,7 @@ int img_set(const char *path, int mode)
     depth = DefaultDepth(disp, DefaultScreen(disp));
     drawable = XCreatePixmap(disp, root, scr->width, scr->height, depth);
 
-    XAllocNamedColor(disp, cm, "black", &color, &color);
+    XAllocNamedColor(disp, cm, bgcolor, &color, &color);
     gcvalue.foreground = color.pixel;
     gc = XCreateGC(disp, drawable, GCForeground, &gcvalue);
     XFillRectangle(disp, drawable, gc, 0, 0, scr->width, scr->height);

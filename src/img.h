@@ -11,6 +11,6 @@ enum {
 void img_xinit(Display *disp);
 
 int img_copy(const char *path, const char *uri);
-int img_set(const char *path, int mode);
+int img_set(const char *path, int mode, const char *bgcolor);
 
 #endif // wall_h_INCLUDED
