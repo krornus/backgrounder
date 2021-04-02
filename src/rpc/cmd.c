@@ -11,7 +11,6 @@
 #include "img.h"
 
 #define MAXMSG 1024*1024
-#define SOCKPATH "bkg:socket"
 
 #define CMD_SET "set"
 #define CMD_SET_PATH "path"
@@ -90,41 +89,6 @@ static int cmd_response(int fd, int code, const char *fmt, ...)
     return rv;
 }
 
-#include <sys/socket.h>
-
-static int do_client(void)
-{
-    rpcmsg_t msg;
-    char buf[1024];
-
-    msg.fd = rpc_client("bkg:socket");
-
-    if (msg.fd < 0) {
-        err(errno, "failed to connect to server");
-    }
-
-    msg.len = fread(buf, sizeof(char), sizeof(buf), stdin);
-    if (ferror(stdin)) {
-        err(errno, "failed to read from stdin");
-    }
-
-    msg.buf = buf;
-
-    if (rpc_send(&msg) < 0) {
-        err(errno, "client send");
-    }
-
-    ssize_t rv;
-    rv = recv(msg.fd, buf, sizeof(buf), 0);
-    if (rv > 0) {
-        printf("%.*s\n", (int)rv, buf);
-    } else {
-        err(errno, "???");
-    }
-
-    return 0;
-}
-
 static int cmd_set(int fd, const JSON_Object *cmd)
 {
     int rv;
@@ -164,12 +128,12 @@ static int cmd_set(int fd, const JSON_Object *cmd)
     }
 
     dest = json_object_get_string(cmd, CMD_SET_DEST);
-    rv = 0;
+    rv = bkg_set(uri, dest, emode, bgcolor);
 
     if (rv == 0) {
         return cmd_response(fd, SUCCESS, "set: success");
     } else {
-        return cmd_response(fd, EARG, "set: %s: %s", uri, strerror(errno));
+        return cmd_response(fd, EARG, "set: '%s': %s", uri, strerror(errno));
     }
 }
 
@@ -241,7 +205,7 @@ static int exec_command_string(int fd, const char *buf)
     return rv;
 }
 
-static int cmd_wait(rpc_t *rpc, int timeout)
+int cmd_wait(rpc_t *rpc, int timeout)
 {
     int rv;
     rpcmsg_t msg;
@@ -277,30 +241,6 @@ static int cmd_wait(rpc_t *rpc, int timeout)
      * now we can null terminate */
     msg.buf[msg.len] = '\0';
 
+    printf("%s\n", msg.buf);
     return exec_command_string(msg.fd, msg.buf);
-}
-
-int main(int argc, char **argv)
-{
-    int fd;
-    rpc_t rpc;
-
-    if (argc == 2) {
-        if (strcmp(argv[1], "-c") == 0 || strcmp(argv[1], "--client") == 0) {
-            return do_client();
-        }
-    }
-
-    fd = rpc_serve(SOCKPATH, &rpc);
-    if (fd < 0) {
-        err(errno, "failed to create server");
-    }
-
-    for (;;) {
-        if (cmd_wait(&rpc, -1) < 0) {
-            err(errno, "cmd_handle()");
-        }
-    }
-
-    return 0;
 }

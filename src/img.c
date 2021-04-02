@@ -1,6 +1,8 @@
 #include <err.h>
+#include <errno.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 #include <unistd.h>
 #include <Imlib2.h>
 #include <X11/Xatom.h>
@@ -8,11 +10,19 @@
 #include "uri.h"
 #include "img.h"
 
-Display *disp;
-Window root;
-Visual *vis;
-Screen *scr;
-Colormap cm;
+#define DFLTIMG "bkg.img"
+#define arysize(x) (sizeof(x)/(sizeof((x)[0])))
+
+static Display *disp;
+static Window root;
+static Visual *vis;
+static Screen *scr;
+static Colormap cm;
+static int depth;
+static Atom root, esetroot;
+
+static Pixmap drawable;
+static char pathbuf[4096];
 
 int img_copy(const char *path, const char *uri)
 {
@@ -123,10 +133,28 @@ void img_xinit(Display *display)
     vis = DefaultVisual(disp, DefaultScreen(disp));
     scr = ScreenOfDisplay(disp, DefaultScreen(disp));
     cm = DefaultColormap(disp, DefaultScreen(disp));
+    depth = DefaultDepth(disp, DefaultScreen(disp));
+    drawable = XCreatePixmap(disp, root, scr->width, scr->height, depth);
+
 
     imlib_context_set_display(disp);
     imlib_context_set_visual(vis);
-	imlib_context_set_colormap(cm);
+    imlib_context_set_colormap(cm);
+    imlib_context_set_drawable(drawable);
+    imlib_context_set_anti_alias(1);
+    imlib_context_set_dither(1);
+    imlib_context_set_blend(1);
+    imlib_context_set_angle(0);
+
+    xkill_bg_root(disp, root);
+
+    XSetCloseDownMode(disp, RetainPermanent);
+
+    root = XInternAtom(disp, "_XROOTPMAP_ID", False);
+    esetroot = XInternAtom(disp, "ESETROOT_PMAP_ID", False);
+    if (root == None || esetroot == None) {
+        err(1, "root pixmap atom creation failed");
+    }
 }
 
 static void img_set_center(int x, int y)
@@ -217,10 +245,7 @@ static void img_set_max(int x, int y)
 
 int img_set(const char *path, int mode, const char *bgcolor)
 {
-    int depth;
     Imlib_Image im;
-    Pixmap drawable;
-    Atom prop_root, prop_esetroot;
     XColor color;
     XGCValues gcvalue;
     GC gc;
@@ -230,9 +255,7 @@ int img_set(const char *path, int mode, const char *bgcolor)
         return -1;
     }
 
-    depth = DefaultDepth(disp, DefaultScreen(disp));
-    drawable = XCreatePixmap(disp, root, scr->width, scr->height, depth);
-
+    /* set the background color of drawable */
     XAllocNamedColor(disp, cm, bgcolor, &color, &color);
     gcvalue.foreground = color.pixel;
     gc = XCreateGC(disp, drawable, GCForeground, &gcvalue);
@@ -240,13 +263,10 @@ int img_set(const char *path, int mode, const char *bgcolor)
     XFreeGC(disp, gc);
     XSync(disp, False);
 
+    /* prepare to render the image onto the drawable */
     imlib_context_set_image(im);
-    imlib_context_set_drawable(drawable);
-    imlib_context_set_anti_alias(0);
-    imlib_context_set_dither(1);
-    imlib_context_set_blend(1);
-    imlib_context_set_angle(0);
 
+    /* render the image */
     switch (mode) {
     case MODE_CENTER:
         img_set_center(0, 0);
@@ -265,24 +285,123 @@ int img_set(const char *path, int mode, const char *bgcolor)
         return -1;
     }
 
-    xkill_bg_root(disp, root);
-
-    prop_root = XInternAtom(disp, "_XROOTPMAP_ID", False);
-    prop_esetroot = XInternAtom(disp, "ESETROOT_PMAP_ID", False);
-
-    if (prop_root == None || prop_esetroot == None) {
-        err(1, "root pixmap atom creation failed");
-    }
-
-    XChangeProperty(disp, root, prop_root, XA_PIXMAP, 32, PropModeReplace,
+    /* change the _XROOTPMAP_ID / ESETROOT_PMAP_ID properties */
+    XChangeProperty(disp, root, root, XA_PIXMAP, 32, PropModeReplace,
                     (unsigned char *)&drawable, 1);
-    XChangeProperty(disp, root, prop_esetroot, XA_PIXMAP, 32, PropModeReplace,
+    XChangeProperty(disp, root, esetroot, XA_PIXMAP, 32, PropModeReplace,
                     (unsigned char *)&drawable, 1);
 
     XSetWindowBackgroundPixmap(disp, root, drawable);
     XClearWindow(disp, root);
     XFlush(disp);
-    XSetCloseDownMode(disp, RetainPermanent);
 
     return 0;
+}
+
+static int ishex(int c)
+{
+    return (c >= '0' && c <= '9') ||
+           (c >= 'a' && c <= 'f') ||
+           (c >= 'A' && c <= 'F');
+}
+
+static char *xcolorstr(const char *color)
+{
+    static char cstr[sizeof("rgb:00/00/00")] = "rgb:";
+    char *ptr;
+
+    if (*color == '#') {
+        color++;
+    }
+
+    ptr = &cstr[strlen("rgb:")];
+
+    for (int i = 0; i < 3; i++) {
+        if (!ishex(color[0]) || !ishex(color[1])) {
+            errno = EINVAL;
+            return NULL;
+        }
+        *ptr++ = *color++;
+        *ptr++ = *color++;
+
+        if (i < 2) {
+            *ptr++ = '/';
+        }
+    }
+
+    if (*color) {
+        errno = EINVAL;
+        return NULL;
+    }
+
+    *ptr = '\0';
+
+    return cstr;
+}
+
+static char *tmpdir(void)
+{
+    char *var;
+    const char *env[] = {
+        "TMPDIR", "TMP", "TEMP", "TEMPDIR"
+    };
+
+    for (size_t i = 0; i < arysize(env); i++) {
+        var = getenv(env[i]);
+        if (var) {
+            return var;
+        }
+    }
+
+    return "/tmp";
+}
+
+static const char *outpath(const char *path)
+{
+    if (path) {
+        return path;
+    } else {
+        int rv;
+        char *tmp;
+
+        tmp = tmpdir();
+        if (!*tmp) {
+            tmp = ".";
+        }
+
+        rv = snprintf(pathbuf, sizeof(pathbuf), "%s/%s",
+                      tmp, DFLTIMG);
+        if (rv >= (int)sizeof(pathbuf)) {
+            err(1, "path exceeds max length: %s/%s", tmp, DFLTIMG);
+        }
+
+        return (const char *)pathbuf;
+    }
+}
+
+int bkg_set(const char *uri, const char *out, int mode, const char *bgcolor)
+{
+    const char *xcolor;
+
+    if (!out && access(uri, F_OK) == 0) {
+        out = uri;
+    } else {
+        out = outpath(out);
+    }
+
+    /* try to convert hex color -> x color,
+     * but if it doesnt work we assume its already x color,
+     * like 'black' or something. */
+    xcolor = xcolorstr(bgcolor);
+    if (!xcolor) {
+        xcolor = bgcolor;
+    }
+
+    if (strcmp(out, uri) != 0) {
+        if (img_copy(out, uri) < 0) {
+            return -1;
+        }
+    }
+
+    return img_set(out, mode, bgcolor);
 }

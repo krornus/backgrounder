@@ -1,11 +1,6 @@
 #ifndef cmd_h_INCLUDED
 #define cmd_h_INCLUDED
 
-enum {
-    CMD_SUCCESS
-    CMD_EMSGLEN,
-};
-
-int cmd_perform(const char *cmd, size_t len);
+int cmd_wait(rpc_t *rpc, int timeout);
 
 #endif // cmd_h_INCLUDED

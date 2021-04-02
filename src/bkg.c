@@ -5,12 +5,12 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <getopt.h>
-#include <X11/Xlib.h>
 
 #include "img.h"
+#include "rpc/rpc.h"
+#include "rpc/cmd.h"
 
-#define DFLT_IM_PATH "bkg.img"
-#define arysize(x) (sizeof(x)/(sizeof((x)[0])))
+#define RPCSOCK "bkg:socket"
 
 typedef struct args args_t;
 
@@ -21,9 +21,7 @@ struct args {
     char *color;
 };
 
-static char pathbuf[4096];
-
-void __attribute__((noreturn)) help(void)
+void __attribute__((noreturn)) exit_help(void)
 {
     fprintf(stderr, "Usage: bkg [mode] <path>\n");
     fprintf(stderr, "Sets the desktop background\n");
@@ -46,93 +44,11 @@ void __attribute__((noreturn)) help(void)
     exit(EXIT_SUCCESS);
 }
 
-void __attribute__((noreturn)) usage(void)
+void __attribute__((noreturn)) exit_usage(void)
 {
     fprintf(stderr, "usage: %s [-h/--help] [options] <path>\n",
                     program_invocation_name);
     exit(EXIT_FAILURE);
-}
-
-int ishex(int c)
-{
-    return (c >= '0' && c <= '9') ||
-           (c >= 'a' && c <= 'f') ||
-           (c >= 'A' && c <= 'F');
-}
-
-char *xcolorstr(const char *color)
-{
-    static char cstr[sizeof("rgb:00/00/00")] = "rgb:";
-    char *ptr;
-
-    if (*color++ != '#') {
-        goto fail;
-    }
-
-    ptr = &cstr[strlen("rgb:")];
-
-    for (int i = 0; i < 3; i++) {
-        if (!ishex(color[0]) || !ishex(color[1])) {
-            goto fail;
-        }
-        *ptr++ = *color++;
-        *ptr++ = *color++;
-
-        if (i < 2) {
-            *ptr++ = '/';
-        }
-    }
-
-    if (*color) {
-        goto fail;
-    }
-
-    *ptr = '\0';
-
-    return cstr;
-
-fail:
-    err(1, "invalid color string, must be hex string of the form: #rrggbb");
-}
-
-char *tmpdir(void)
-{
-    char *var;
-    const char *env[] = {
-        "TMPDIR", "TMP", "TEMP", "TEMPDIR"
-    };
-
-    for (size_t i = 0; i < arysize(env); i++) {
-        var = getenv(env[i]);
-        if (var) {
-            return var;
-        }
-    }
-
-    return "/tmp";
-}
-
-const char *outpath(const char *path)
-{
-    if (path) {
-        return path;
-    } else {
-        int rv;
-        char *tmp;
-
-        tmp = tmpdir();
-        if (!*tmp) {
-            tmp = ".";
-        }
-
-        rv = snprintf(pathbuf, sizeof(pathbuf), "%s/%s",
-                      tmp, DFLT_IM_PATH);
-        if (rv >= (int)sizeof(pathbuf)) {
-            err(1, "path exceeds max length: %s/%s", tmp, DFLT_IM_PATH);
-        }
-
-        return (const char *)pathbuf;
-    }
 }
 
 void parse_args(int argc, char *const argv[], args_t *args)
@@ -162,7 +78,7 @@ void parse_args(int argc, char *const argv[], args_t *args)
 
         switch (c) {
         case 'h':
-            help();
+            exit_help();
         case 'f':
             args->mode = MODE_FILL;
             break;
@@ -179,7 +95,7 @@ void parse_args(int argc, char *const argv[], args_t *args)
             args->output = optarg;
             break;
         case 'C':
-            args->color = xcolorstr(optarg);
+            args->color = optarg;
             break;
         case '?':
             fprintf(stderr, "Try '%s --help' for more information.\n",
@@ -191,19 +107,60 @@ void parse_args(int argc, char *const argv[], args_t *args)
     }
 
     if (optind >= argc || optind + 1 != argc) {
-        usage();
+        exit_usage();
     }
 
     args->path = argv[optind];
-    args->output = outpath(args->output);
+}
+
+#include <sys/socket.h>
+static int do_client(void)
+{
+    rpcmsg_t msg;
+    char buf[1024];
+
+    msg.fd = rpc_client("bkg:socket");
+
+    if (msg.fd < 0) {
+        err(errno, "failed to connect to server");
+    }
+
+    msg.len = fread(buf, sizeof(char), sizeof(buf), stdin);
+    if (ferror(stdin)) {
+        err(errno, "failed to read from stdin");
+    }
+
+    msg.buf = buf;
+
+    if (rpc_send(&msg) < 0) {
+        err(errno, "client send");
+    }
+
+    ssize_t rv;
+    rv = recv(msg.fd, buf, sizeof(buf), 0);
+    if (rv > 0) {
+        printf("%.*s\n", (int)rv, buf);
+    } else {
+        errx(errno, "???");
+    }
+
+    return 0;
 }
 
 int main(int argc, char *const argv[])
 {
     Display *disp;
     args_t args;
+    int fd;
+    rpc_t rpc;
 
-    parse_args(argc, argv, &args);
+    // parse_args(argc, argv, &args);
+
+    if (argc == 2) {
+        if (strcmp(argv[1], "-c") == 0 || strcmp(argv[1], "--client") == 0) {
+            return do_client();
+        }
+    }
 
     disp = XOpenDisplay(NULL);
     if (!disp) {
@@ -212,13 +169,15 @@ int main(int argc, char *const argv[])
 
     img_xinit(disp);
 
-    if (img_copy(args.output, args.path) < 0) {
-        err(EXIT_FAILURE, "%s", argv[1]);
+    fd = rpc_serve(RPCSOCK, &rpc);
+    if (fd < 0) {
+        err(errno, "failed to create server");
     }
 
-    if (img_set(args.output, args.mode, args.color) < 0) {
-        unlink(args.output);
-        err(EXIT_FAILURE, "%s", argv[1]);
+    for (;;) {
+        if (cmd_wait(&rpc, -1) < 0) {
+            err(errno, "cmd_handle()");
+        }
     }
 
     XCloseDisplay(disp);

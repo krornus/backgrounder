@@ -8,11 +8,11 @@ CFLAGS += -Wall -Wpedantic -Wextra -Wformat=2
 CFLAGS += -MMD
 CFLAGS += -D_GNU_SOURCE
 CFLAGS += -I.
-CFLAGS += -O3
+CFLAGS += -Og -ggdb
 
-LDLIBS := -lcurl -lImlib2 -lX11
+LDLIBS := -lcurl -lImlib2 -lX11 -lmpack
 
-OBJ := bkg.o buf.o uri.o img.o
+OBJ := bkg.o buf.o uri.o img.o rpc/cmd.o rpc/parson.o rpc/rpc.o
 DEP := $(OBJ:.o=.d)
 
 .PHONY: all
