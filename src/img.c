@@ -1,8 +1,8 @@
 #include <err.h>
-#include <errno.h>
 #include <stdlib.h>
-#include <stdio.h>
 #include <string.h>
+#include <errno.h>
+#include <stdio.h>
 #include <unistd.h>
 #include <Imlib2.h>
 #include <X11/Xatom.h>
@@ -11,19 +11,49 @@
 #include "img.h"
 
 #define DFLTIMG "bkg.img"
-#define arysize(x) (sizeof(x)/(sizeof((x)[0])))
+#define arylen(x) (sizeof(x)/sizeof(x[0]))
 
 static Display *disp;
 static Window root;
 static Visual *vis;
 static Screen *scr;
 static Colormap cm;
-static int depth;
-static Atom root, esetroot;
-
+static Atom prop_root;
+static Atom prop_esetroot;
 static Pixmap drawable;
+
 static char pathbuf[4096];
 
+void img_xinit(Display *display)
+{
+    int depth;
+
+    disp = display;
+    root = RootWindow(disp, DefaultScreen(disp));
+    vis = DefaultVisual(disp, DefaultScreen(disp));
+    scr = ScreenOfDisplay(disp, DefaultScreen(disp));
+    cm = DefaultColormap(disp, DefaultScreen(disp));
+
+    depth = DefaultDepth(disp, DefaultScreen(disp));
+    drawable = XCreatePixmap(disp, root, scr->width, scr->height, depth);
+
+    prop_root = XInternAtom(disp, "_XROOTPMAP_ID", False);
+    prop_esetroot = XInternAtom(disp, "ESETROOT_PMAP_ID", False);
+    if (prop_root == None || prop_esetroot == None) {
+        err(1, "root pixmap atom creation failed");
+    }
+
+    imlib_context_set_drawable(drawable);
+    imlib_context_set_display(disp);
+    imlib_context_set_visual(vis);
+    imlib_context_set_colormap(cm);
+    imlib_context_set_anti_alias(0);
+    imlib_context_set_dither(1);
+    imlib_context_set_blend(1);
+    imlib_context_set_angle(0);
+}
+
+/* copy an image from uri to path */
 int img_copy(const char *path, const char *uri)
 {
     FILE *src, *dest;
@@ -77,84 +107,6 @@ fail:
     fclose(src);
     fclose(dest);
     return -1;
-}
-
-static unsigned char *xatom_data(Display *disp,
-                                 Window root,
-                                 const char *name,
-                                 Atom *type)
-{
-    Atom prop;
-    int format;
-    unsigned long length, after;
-    unsigned char *data;
-
-    prop = XInternAtom(disp, name, True);
-    if (prop != None) {
-        XGetWindowProperty(disp, root, prop, 0L, 1L, False,
-                           AnyPropertyType, type, &format, &length,
-                           &after, &data);
-        return data;
-    } else {
-        return NULL;
-    }
-}
-
-static void xkill_bg_root(Display *disp, Window root)
-{
-    Atom type;
-    unsigned char *data_root, *data_esetroot;
-
-    data_root = xatom_data(disp, root, "_XROOTPMAP_ID", &type);
-    data_esetroot = NULL;
-
-    if (data_root && type == XA_PIXMAP) {
-        data_esetroot = xatom_data(disp, root, "ESETROOT_PMAP_ID", &type);
-        if (data_esetroot && type == XA_PIXMAP) {
-            if (*((Pixmap *)data_root) == *((Pixmap *)data_esetroot)) {
-                XKillClient(disp, *((Pixmap *)data_root));
-            }
-        }
-    }
-
-    if (data_root) {
-        XFree(data_root);
-    }
-
-    if (data_esetroot) {
-        XFree(data_esetroot);
-    }
-}
-
-void img_xinit(Display *display)
-{
-    disp = display;
-    root = RootWindow(disp, DefaultScreen(disp));
-    vis = DefaultVisual(disp, DefaultScreen(disp));
-    scr = ScreenOfDisplay(disp, DefaultScreen(disp));
-    cm = DefaultColormap(disp, DefaultScreen(disp));
-    depth = DefaultDepth(disp, DefaultScreen(disp));
-    drawable = XCreatePixmap(disp, root, scr->width, scr->height, depth);
-
-
-    imlib_context_set_display(disp);
-    imlib_context_set_visual(vis);
-    imlib_context_set_colormap(cm);
-    imlib_context_set_drawable(drawable);
-    imlib_context_set_anti_alias(1);
-    imlib_context_set_dither(1);
-    imlib_context_set_blend(1);
-    imlib_context_set_angle(0);
-
-    xkill_bg_root(disp, root);
-
-    XSetCloseDownMode(disp, RetainPermanent);
-
-    root = XInternAtom(disp, "_XROOTPMAP_ID", False);
-    esetroot = XInternAtom(disp, "ESETROOT_PMAP_ID", False);
-    if (root == None || esetroot == None) {
-        err(1, "root pixmap atom creation failed");
-    }
 }
 
 static void img_set_center(int x, int y)
@@ -214,6 +166,7 @@ static void img_set_fill(int x, int y)
         x, y, w, h);
 }
 
+/* render the image in MODE_MAX on a canvas */
 static void img_set_max(int x, int y)
 {
     int img_w, img_h, border_x;
@@ -243,19 +196,20 @@ static void img_set_max(int x, int y)
         render_w, render_h);
 }
 
-int img_set(const char *path, int mode, const char *bgcolor)
+/* set an image located at filepath with mode and background color */
+int img_set(const char *filepath, int mode, const char *bgcolor)
 {
     Imlib_Image im;
     XColor color;
     XGCValues gcvalue;
     GC gc;
 
-    im = imlib_load_image(path);
+    im = imlib_load_image_without_cache(filepath);
     if (!im) {
         return -1;
     }
 
-    /* set the background color of drawable */
+    /* set the background color first */
     XAllocNamedColor(disp, cm, bgcolor, &color, &color);
     gcvalue.foreground = color.pixel;
     gc = XCreateGC(disp, drawable, GCForeground, &gcvalue);
@@ -263,10 +217,9 @@ int img_set(const char *path, int mode, const char *bgcolor)
     XFreeGC(disp, gc);
     XSync(disp, False);
 
-    /* prepare to render the image onto the drawable */
+    /* render the image onto the drawable. */
     imlib_context_set_image(im);
 
-    /* render the image */
     switch (mode) {
     case MODE_CENTER:
         img_set_center(0, 0);
@@ -285,19 +238,21 @@ int img_set(const char *path, int mode, const char *bgcolor)
         return -1;
     }
 
-    /* change the _XROOTPMAP_ID / ESETROOT_PMAP_ID properties */
-    XChangeProperty(disp, root, root, XA_PIXMAP, 32, PropModeReplace,
+    /* note the new pixmap in the properties */
+    XChangeProperty(disp, root, prop_root, XA_PIXMAP, 32, PropModeReplace,
                     (unsigned char *)&drawable, 1);
-    XChangeProperty(disp, root, esetroot, XA_PIXMAP, 32, PropModeReplace,
-                    (unsigned char *)&drawable, 1);
+    XChangeProperty(disp, root, prop_esetroot, XA_PIXMAP, 32, PropModeReplace,
+                (unsigned char *)&drawable, 1);
 
     XSetWindowBackgroundPixmap(disp, root, drawable);
     XClearWindow(disp, root);
+    XSync(disp, False);
     XFlush(disp);
 
     return 0;
 }
 
+/* check if a character is valid hex */
 static int ishex(int c)
 {
     return (c >= '0' && c <= '9') ||
@@ -305,6 +260,7 @@ static int ishex(int c)
            (c >= 'A' && c <= 'F');
 }
 
+/* convert a color string to one compatible with x11 apis */
 static char *xcolorstr(const char *color)
 {
     static char cstr[sizeof("rgb:00/00/00")] = "rgb:";
@@ -339,6 +295,7 @@ static char *xcolorstr(const char *color)
     return cstr;
 }
 
+/* gets the path to a temporary directory */
 static char *tmpdir(void)
 {
     char *var;
@@ -346,7 +303,7 @@ static char *tmpdir(void)
         "TMPDIR", "TMP", "TEMP", "TEMPDIR"
     };
 
-    for (size_t i = 0; i < arysize(env); i++) {
+    for (size_t i = 0; i < arylen(env); i++) {
         var = getenv(env[i]);
         if (var) {
             return var;
@@ -356,27 +313,29 @@ static char *tmpdir(void)
     return "/tmp";
 }
 
+/* get an output path for an image. if path is given, returns path, else
+ * returns a default value in a temporary directory. */
 static const char *outpath(const char *path)
 {
+    int rv;
+    char *tmp;
+
     if (path) {
         return path;
-    } else {
-        int rv;
-        char *tmp;
-
-        tmp = tmpdir();
-        if (!*tmp) {
-            tmp = ".";
-        }
-
-        rv = snprintf(pathbuf, sizeof(pathbuf), "%s/%s",
-                      tmp, DFLTIMG);
-        if (rv >= (int)sizeof(pathbuf)) {
-            err(1, "path exceeds max length: %s/%s", tmp, DFLTIMG);
-        }
-
-        return (const char *)pathbuf;
     }
+
+    tmp = tmpdir();
+    if (!*tmp) {
+        tmp = ".";
+    }
+
+    rv = snprintf(pathbuf, sizeof(pathbuf), "%s/%s",
+                  tmp, DFLTIMG);
+    if (rv >= (int)sizeof(pathbuf)) {
+        err(1, "path exceeds max length: %s/%s", tmp, DFLTIMG);
+    }
+
+    return (const char *)pathbuf;
 }
 
 int bkg_set(const char *uri, const char *out, int mode, const char *bgcolor)

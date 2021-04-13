@@ -11,6 +11,7 @@
 #include "rpc/cmd.h"
 
 #define RPCSOCK "bkg:socket"
+#define PROG    program_invocation_short_name
 
 typedef struct args args_t;
 
@@ -23,7 +24,7 @@ struct args {
 
 void __attribute__((noreturn)) exit_help(void)
 {
-    fprintf(stderr, "Usage: bkg [mode] <path>\n");
+    fprintf(stderr, "Usage: %s [mode] <path>\n", PROG);
     fprintf(stderr, "Sets the desktop background\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "Mandatory arguments:\n");
@@ -113,54 +114,15 @@ void parse_args(int argc, char *const argv[], args_t *args)
     args->path = argv[optind];
 }
 
-#include <sys/socket.h>
-static int do_client(void)
-{
-    rpcmsg_t msg;
-    char buf[1024];
-
-    msg.fd = rpc_client("bkg:socket");
-
-    if (msg.fd < 0) {
-        err(errno, "failed to connect to server");
-    }
-
-    msg.len = fread(buf, sizeof(char), sizeof(buf), stdin);
-    if (ferror(stdin)) {
-        err(errno, "failed to read from stdin");
-    }
-
-    msg.buf = buf;
-
-    if (rpc_send(&msg) < 0) {
-        err(errno, "client send");
-    }
-
-    ssize_t rv;
-    rv = recv(msg.fd, buf, sizeof(buf), 0);
-    if (rv > 0) {
-        printf("%.*s\n", (int)rv, buf);
-    } else {
-        errx(errno, "???");
-    }
-
-    return 0;
-}
-
 int main(int argc, char *const argv[])
 {
     Display *disp;
-    args_t args;
-    int fd;
     rpc_t rpc;
+    int fd;
+    (void)argc;
+    (void)argv;
 
     // parse_args(argc, argv, &args);
-
-    if (argc == 2) {
-        if (strcmp(argv[1], "-c") == 0 || strcmp(argv[1], "--client") == 0) {
-            return do_client();
-        }
-    }
 
     disp = XOpenDisplay(NULL);
     if (!disp) {

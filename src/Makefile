@@ -10,7 +10,7 @@ CFLAGS += -D_GNU_SOURCE
 CFLAGS += -I.
 CFLAGS += -Og -ggdb
 
-LDLIBS := -lcurl -lImlib2 -lX11 -lmpack
+LDLIBS := -lcurl -lImlib2 -lX11
 
 OBJ := bkg.o buf.o uri.o img.o rpc/cmd.o rpc/parson.o rpc/rpc.o
 DEP := $(OBJ:.o=.d)
